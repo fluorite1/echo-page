@@ -63,7 +63,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useHistoryStore } from '@/stores/history'
 import generateID from '@/utils/generateID'
 import { ANIMATION_PRESETS } from '@/constants/animations'
-import type { Animation, AnimationAction, SubscriptionRule } from '@/types'
+import type { Animation, AnimationAction, SubscriptionRule, Component } from '@/types'
 import { deepCopy } from '@/utils/common'
 
 const editorStore = useEditorStore()
@@ -122,16 +122,16 @@ const animationOptions = computed(() => {
 })
 
 const infiniteFlags = reactive<Record<string, boolean>>({})
-const lastSubscriptions = ref<SubscriptionRule[] | null>(null)
+const lastSnapshot = ref<Component | null>(null)
 
-function snapshotSubscriptions(): SubscriptionRule[] {
-  return deepCopy(curComponent.value?.subscriptions ?? [])
+function snapshotComponent(): Component | null {
+  return curComponent.value ? deepCopy(curComponent.value) : null
 }
 
 watch(
   curComponent,
   () => {
-    lastSubscriptions.value = snapshotSubscriptions()
+    lastSnapshot.value = snapshotComponent()
   },
   { immediate: true }
 )
@@ -180,10 +180,11 @@ function syncLabel(rule: RuleVM) {
 function record() {
   const c = curComponent.value
   if (!c) return
-  const before = lastSubscriptions.value ?? snapshotSubscriptions()
-  const after = snapshotSubscriptions()
-  historyStore.executeUpdate(c.id, { subscriptions: before }, { subscriptions: after }, 'update subscriptions')
-  lastSubscriptions.value = after
+  const before = lastSnapshot.value ?? snapshotComponent()
+  const after = snapshotComponent()
+  if (!before || !after) return
+  historyStore.executeUpdate(c.id, before, after, 'update subscriptions')
+  lastSnapshot.value = after
 }
 </script>
 

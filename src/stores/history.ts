@@ -1,10 +1,10 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { deepCopy } from '@/utils/common'
-import type { Component, ComponentStyle } from '@/types'
+import type { Component } from '@/types'
 import { useEditorStore } from './editor'
 
-export type CommandType = 'add' | 'delete' | 'update' | 'reorder'
+export type CommandType = 'add' | 'delete' | 'update' | 'reorder' | 'batch'
 
 export interface BaseCommand {
   type: CommandType
@@ -28,8 +28,8 @@ export interface DeleteCommand extends BaseCommand {
 export interface UpdateCommand extends BaseCommand {
   type: 'update'
   id: string
-  before: ComponentPatch
-  after: ComponentPatch
+  before: Component
+  after: Component
 }
 
 export interface ReorderCommand extends BaseCommand {
@@ -39,23 +39,14 @@ export interface ReorderCommand extends BaseCommand {
   to: number
 }
 
-export type HistoryCommand = AddCommand | DeleteCommand | UpdateCommand | ReorderCommand
+export interface BatchCommand extends BaseCommand {
+  type: 'batch'
+  children: HistoryCommand[]
+}
+
+export type HistoryCommand = AddCommand | DeleteCommand | UpdateCommand | ReorderCommand | BatchCommand
 
 const MAX_HISTORY = 100
-
-export type ComponentPatch = Omit<Partial<Component>, 'style'> & { style?: Partial<ComponentStyle> }
-
-function applyComponentPatch(target: Component, patch: ComponentPatch) {
-  // style 需要合并（否则会丢失未涉及字段）
-  if (patch.style) {
-    Object.assign(target.style, patch.style)
-  }
-
-  // 其它字段采用替换语义（数据量较小、语义直观）
-  const rest = { ...patch } as Omit<ComponentPatch, 'style'> & { style?: never }
-  delete (rest as any).style
-  Object.assign(target, rest)
-}
 
 export const useHistoryStore = defineStore('history', () => {
   const editorStore = useEditorStore()
@@ -66,7 +57,7 @@ export const useHistoryStore = defineStore('history', () => {
   // 用于高频交互：先 beginUpdate，再在交互结束时 commitUpdate
   const pendingUpdate = ref<{
     id: string
-    before: ComponentPatch
+    before: Component
     label?: string
   } | null>(null)
 
@@ -146,6 +137,22 @@ export const useHistoryStore = defineStore('history', () => {
     }
   }
 
+  function createDeleteCommandFromSnapshot(component: Component, index: number, label?: string): DeleteCommand {
+    const snapshot = deepCopy(component)
+    return {
+      type: 'delete',
+      label,
+      component: snapshot,
+      index,
+      do() {
+        editorStore.deleteComponent(index)
+      },
+      undo() {
+        editorStore.addComponent(deepCopy(snapshot), index)
+      },
+    }
+  }
+
   function createReorderCommand(id: string, from: number, to: number, label?: string): ReorderCommand {
     return {
       type: 'reorder',
@@ -162,7 +169,22 @@ export const useHistoryStore = defineStore('history', () => {
     }
   }
 
-  function createUpdateCommand(id: string, before: ComponentPatch, after: ComponentPatch, label?: string): UpdateCommand {
+  function createBatchCommand(children: HistoryCommand[], label?: string): BatchCommand {
+    const list = children.filter(Boolean)
+    return {
+      type: 'batch',
+      label,
+      children: list,
+      do() {
+        for (const c of list) c.do()
+      },
+      undo() {
+        for (let i = list.length - 1; i >= 0; i--) list[i]!.undo()
+      },
+    }
+  }
+
+  function createUpdateCommand(id: string, before: Component, after: Component, label?: string): UpdateCommand {
     const beforeCopy = deepCopy(before)
     const afterCopy = deepCopy(after)
     return {
@@ -172,14 +194,10 @@ export const useHistoryStore = defineStore('history', () => {
       before: beforeCopy,
       after: afterCopy,
       do() {
-        const target = editorStore.getComponentById(id)
-        if (!target) return
-        applyComponentPatch(target, afterCopy)
+        editorStore.replaceComponentById(id, deepCopy(afterCopy))
       },
       undo() {
-        const target = editorStore.getComponentById(id)
-        if (!target) return
-        applyComponentPatch(target, beforeCopy)
+        editorStore.replaceComponentById(id, deepCopy(beforeCopy))
       },
     }
   }
@@ -198,39 +216,41 @@ export const useHistoryStore = defineStore('history', () => {
 
   /** 清空画布：视为一次批量 delete（仍属于 delete 类命令） */
   function executeClearCanvas(label?: string) {
-    const before = deepCopy(editorStore.componentData)
-    if (before.length === 0) return
-    const cmd: DeleteCommand = {
-      type: 'delete',
-      label,
-      component: deepCopy(before[0]!),
-      index: -1,
-      do() {
-        editorStore.setComponentData([])
-        editorStore.setCurComponent(null, null)
-      },
-      undo() {
-        editorStore.setComponentData(deepCopy(before))
-      },
+    const list = editorStore.componentData
+    if (list.length === 0) return
+
+    // 从后往前删除：删除时 index 稳定；undo 逆序执行会按 0..n-1 依次插回
+    const deletes: HistoryCommand[] = []
+    for (let i = list.length - 1; i >= 0; i--) {
+      const item = list[i]
+      if (!item) continue
+      deletes.push(createDeleteCommandFromSnapshot(item, i))
     }
-    execute(cmd)
+    executeBatch(deletes, label ?? 'clear canvas')
   }
 
   function executeReorder(id: string, from: number, to: number, label?: string) {
     execute(createReorderCommand(id, from, to, label))
   }
 
-  // 高频交互：begin/commit
-  function beginUpdate(id: string, before: Partial<Component>, label?: string) {
-    pendingUpdate.value = { id, before: deepCopy(before as ComponentPatch), label }
+  /** 批量执行（一次入栈）：do 顺序执行，undo 逆序执行 */
+  function executeBatch(children: HistoryCommand[], label?: string) {
+    const list = children.filter(Boolean)
+    if (list.length === 0) return
+    execute(createBatchCommand(list, label))
   }
 
-  function commitUpdate(after: Partial<Component>) {
+  // 高频交互：begin/commit
+  function beginUpdate(id: string, before: Component, label?: string) {
+    pendingUpdate.value = { id, before: deepCopy(before), label }
+  }
+
+  function commitUpdate(after: Component) {
     const p = pendingUpdate.value
     if (!p) return
     pendingUpdate.value = null
 
-    const cmd = createUpdateCommand(p.id, p.before, after as ComponentPatch, p.label)
+    const cmd = createUpdateCommand(p.id, p.before, after, p.label)
     execute(cmd)
   }
 
@@ -239,12 +259,8 @@ export const useHistoryStore = defineStore('history', () => {
   }
 
   // 低频：直接一次性 update
-  function executeUpdate(id: string, before: ComponentPatch, after: ComponentPatch, label?: string) {
+  function executeUpdate(id: string, before: Component, after: Component, label?: string) {
     execute(createUpdateCommand(id, before, after, label))
-  }
-
-  function snapshotStyle(style: ComponentStyle) {
-    return deepCopy(style) as ComponentStyle
   }
 
   return {
@@ -263,11 +279,11 @@ export const useHistoryStore = defineStore('history', () => {
     executeDeleteById,
     executeClearCanvas,
     executeReorder,
+    executeBatch,
     beginUpdate,
     commitUpdate,
     cancelPendingUpdate,
     executeUpdate,
-    snapshotStyle,
   }
 })
 

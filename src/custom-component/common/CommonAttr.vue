@@ -44,7 +44,7 @@ import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
 import { useHistoryStore } from '@/stores/history'
 import { styleData, selectKey, optionMap } from '@/utils/attr'
-import type { ComponentStyle } from '@/types'
+import type { Component, ComponentStyle } from '@/types'
 import { deepCopy } from '@/utils/common'
 import InteractionAttr from '@/custom-component/common/InteractionAttr.vue'
 import SubscriptionsAttr from '@/custom-component/common/SubscriptionsAttr.vue'
@@ -54,7 +54,7 @@ const historyStore = useHistoryStore()
 const { curComponent } = storeToRefs(editorStore)
 
 const activeName = ref('')
-const lastStyleSnapshot = ref<ComponentStyle | null>(null)
+const lastComponentSnapshot = ref<Component | null>(null)
 
 const styleKeys = computed(() => {
   if (curComponent.value) {
@@ -69,7 +69,7 @@ watch(
   () => {
     if (curComponent.value) {
       activeName.value = curComponent.value.collapseName || 'style'
-      lastStyleSnapshot.value = deepCopy(curComponent.value.style)
+      lastComponentSnapshot.value = deepCopy(curComponent.value)
     }
   },
   { immediate: true }
@@ -84,10 +84,10 @@ function onChange() {
 function handleStyleChange() {
   const c = curComponent.value
   if (!c) return
-  const before = lastStyleSnapshot.value ? deepCopy(lastStyleSnapshot.value) : deepCopy(c.style)
-  const after = deepCopy(c.style)
-  historyStore.executeUpdate(c.id, { style: before }, { style: after }, 'update common style')
-  lastStyleSnapshot.value = after
+  const before = lastComponentSnapshot.value ? deepCopy(lastComponentSnapshot.value) : deepCopy(c)
+  const after = deepCopy(c)
+  historyStore.executeUpdate(c.id, before, after, 'update common style')
+  lastComponentSnapshot.value = after
 }
 
 function isIncludesColor(str: string): boolean {

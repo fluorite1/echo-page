@@ -29,6 +29,7 @@ import { useEditorStore } from '@/stores/editor'
 import { useHistoryStore } from '@/stores/history'
 import { eventBus } from '@/utils/eventBus'
 import type { Component } from '@/types'
+import { deepCopy } from '@/utils/common'
 
 interface Props {
   propValue: string
@@ -51,7 +52,7 @@ const textRef = ref<HTMLElement>()
 
 const keycodes = [66, 67, 68, 73, 83, 85, 88, 89, 90] // B C D I S U X Y Z
 
-const editBefore = ref<{ html: string; height: number } | null>(null)
+const editBefore = ref<Component | null>(null)
 
 function onComponentClick() {
   if (curComponent.value?.id !== props.element.id) {
@@ -108,26 +109,21 @@ function handleBlur(e: FocusEvent) {
   const nextHtml = raw !== '' ? raw : '&nbsp;'
 
   const before = editBefore.value
-  const afterHeight = props.element.style.height
 
   props.element.propValue = nextHtml
   canEdit.value = false
 
   if (!before) return
+  const after = deepCopy(props.element)
   // 仅在一次编辑会话结束时记录一次 update 命令
-  if (before.html === nextHtml && before.height === afterHeight) return
-  historyStore.executeUpdate(
-    props.element.id,
-    { propValue: before.html, style: { height: before.height } },
-    { propValue: nextHtml, style: { height: afterHeight } },
-    'edit text'
-  )
+  if (JSON.stringify(before) === JSON.stringify(after)) return
+  historyStore.executeUpdate(props.element.id, before, after, 'edit text')
   editBefore.value = null
 }
 
 function setEdit() {
   canEdit.value = true
-  editBefore.value = { html: props.element.propValue, height: props.element.style.height }
+  editBefore.value = deepCopy(props.element)
   if (textRef.value) {
     selectText(textRef.value)
   }

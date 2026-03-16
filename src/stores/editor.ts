@@ -68,6 +68,17 @@ export const useEditorStore = defineStore('editor', () => {
     deleteComponent(index)
   }
 
+  /** 用完整快照替换某个组件（用于 update 命令 do/undo） */
+  function replaceComponentById(id: string, next: Component): void {
+    const index = findIndexById(id)
+    if (index < 0) return
+    componentData.value[index] = next
+    if (curComponent.value?.id === id) {
+      curComponent.value = next
+      curComponentIndex.value = index
+    }
+  }
+
   /** 将组件从 from 移动到 to（图层排序的基础操作） */
   function moveComponent(from: number, to: number): void {
     if (from === to) return
@@ -218,6 +229,7 @@ export const useEditorStore = defineStore('editor', () => {
     findIndexById,
     getComponentById,
     removeComponentById,
+    replaceComponentById,
     moveComponent,
     setShapeStyle,
     setShapeSingleStyle,

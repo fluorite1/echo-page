@@ -79,7 +79,7 @@ import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
 import { useHistoryStore } from '@/stores/history'
 import { ANIMATION_PRESETS } from '@/constants/animations'
-import type { Animation, PreviewEventType } from '@/types'
+import type { Animation, PreviewEventType, Component } from '@/types'
 import { deepCopy } from '@/utils/common'
 
 const editorStore = useEditorStore()
@@ -88,15 +88,10 @@ const { curComponent } = storeToRefs(editorStore)
 
 const presets = ANIMATION_PRESETS
 
-type InteractionSnapshot = Pick<NonNullable<typeof curComponent.value>, 'triggerAnimations' | 'events'>
-const lastSnapshot = ref<InteractionSnapshot | null>(null)
+const lastSnapshot = ref<Component | null>(null)
 
-function snapshot(): InteractionSnapshot {
-  const c = curComponent.value
-  return {
-    triggerAnimations: deepCopy(c?.triggerAnimations ?? {}),
-    events: deepCopy(c?.events ?? {}),
-  } as any
+function snapshot(): Component | null {
+  return curComponent.value ? deepCopy(curComponent.value) : null
 }
 
 watch(
@@ -204,12 +199,8 @@ function record() {
   if (!c) return
   const before = lastSnapshot.value ?? snapshot()
   const after = snapshot()
-  historyStore.executeUpdate(
-    c.id,
-    { triggerAnimations: before.triggerAnimations, events: before.events },
-    { triggerAnimations: after.triggerAnimations, events: after.events },
-    'update interaction config'
-  )
+  if (!before || !after) return
+  historyStore.executeUpdate(c.id, before, after, 'update interaction config')
   lastSnapshot.value = after
 }
 </script>

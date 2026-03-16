@@ -113,7 +113,7 @@ function handleMouseDownOnShape(e: MouseEvent) {
   editorStore.setCurComponent(props.element, props.index)
 
   // 高频交互：移动只在 mouseup 时记录一次 update 命令
-  historyStore.beginUpdate(props.element.id, { style: historyStore.snapshotStyle(props.defaultStyle) }, 'move component')
+  historyStore.beginUpdate(props.element.id, props.element, 'move component')
 
   const pos = { ...props.defaultStyle }
   const startY = e.clientY
@@ -139,7 +139,7 @@ function handleMouseDownOnShape(e: MouseEvent) {
 
   const up = () => {
     if (hasMove) {
-      historyStore.commitUpdate({ style: historyStore.snapshotStyle(props.element.style) })
+      historyStore.commitUpdate(props.element)
     } else {
       historyStore.cancelPendingUpdate()
     }
@@ -195,7 +195,7 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
   const needLockProportion = false
 
   // 高频交互：缩放只在 mouseup 时记录一次 update 命令
-  historyStore.beginUpdate(props.element.id, { style: historyStore.snapshotStyle(props.defaultStyle) }, 'resize component')
+  historyStore.beginUpdate(props.element.id, props.element, 'resize component')
 
   const move = (moveEvent: MouseEvent) => {
     if (isFirst) {
@@ -222,7 +222,7 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
     document.removeEventListener('mousemove', move)
     document.removeEventListener('mouseup', up)
     if (needSave) {
-      historyStore.commitUpdate({ style: historyStore.snapshotStyle(props.element.style) })
+      historyStore.commitUpdate(props.element)
     } else {
       historyStore.cancelPendingUpdate()
     }
