@@ -15,8 +15,16 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "ace-builds": "^1.37.0",
+    "echarts": "^5.5.1",
+    "element-plus": "^2.13.5",
+    "mathjs": "^14.9.0",
+    "mitt": "^3.0.1",
+    "nanoid": "^5.1.6",
     "pinia": "^3.0.4",
     "vue": "^3.5.29",
+    "vue-echarts": "^6.7.3",
     "vue-router": "^5.0.3"
   },
   "devDependencies": {
@@ -33,6 +41,7 @@
     "npm-run-all2": "^8.0.4",
     "oxlint": "~1.50.0",
     "prettier": "3.8.1",
+    "sass-embedded": "^1.98.0",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
     "vite-plugin-vue-devtools": "^8.0.6",
