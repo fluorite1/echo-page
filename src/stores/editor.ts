@@ -54,6 +54,45 @@ export const useEditorStore = defineStore('editor', () => {
     componentData.value = data
   }
 
+  function findIndexById(id: string): number {
+    return componentData.value.findIndex((c) => c.id === id)
+  }
+
+  function getComponentById(id: string): Component | null {
+    return componentData.value.find((c) => c.id === id) || null
+  }
+
+  function removeComponentById(id: string): void {
+    const index = findIndexById(id)
+    if (index < 0) return
+    deleteComponent(index)
+  }
+
+  /** 将组件从 from 移动到 to（图层排序的基础操作） */
+  function moveComponent(from: number, to: number): void {
+    if (from === to) return
+    if (from < 0 || from >= componentData.value.length) return
+    const clampedTo = Math.max(0, Math.min(componentData.value.length - 1, to))
+
+    const [item] = componentData.value.splice(from, 1)
+    if (!item) return
+    componentData.value.splice(clampedTo, 0, item)
+
+    // 同步选中索引（若有选中）
+    if (curComponentIndex.value === null) return
+    if (curComponentIndex.value === from) {
+      curComponentIndex.value = clampedTo
+      curComponent.value = item
+      return
+    }
+    // 选中项在移动区间内，索引随之偏移
+    if (from < clampedTo && curComponentIndex.value > from && curComponentIndex.value <= clampedTo) {
+      curComponentIndex.value--
+    } else if (from > clampedTo && curComponentIndex.value >= clampedTo && curComponentIndex.value < from) {
+      curComponentIndex.value++
+    }
+  }
+
   function setShapeStyle(style: Partial<Component['style']>) {
     if (!curComponent.value) return
     Object.assign(curComponent.value.style, style)
@@ -176,6 +215,10 @@ export const useEditorStore = defineStore('editor', () => {
     addComponent,
     deleteComponent,
     setComponentData,
+    findIndexById,
+    getComponentById,
+    removeComponentById,
+    moveComponent,
     setShapeStyle,
     setShapeSingleStyle,
     setCanvasStyle,

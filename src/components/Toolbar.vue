@@ -57,11 +57,13 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'AppToolbar' })
+
 import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useEditorStore } from '@/stores/editor'
-import { useSnapshotStore } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadFile, UploadInstance } from 'element-plus'
 import generateID from '@/utils/generateID'
@@ -69,12 +71,11 @@ import { deepCopy } from '@/utils/common'
 import componentList from '@/custom-component/component-list'
 import { changeComponentSizeWithScale } from '@/utils/changeComponentsSize'
 import type { Component, CanvasStyle } from '@/types'
-import { setDefaultComponentData } from '@/stores/snapshot'
 import { LOCAL_STORAGE_KEYS } from '@/constants/storage'
 
 const router = useRouter()
 const editorStore = useEditorStore()
-const snapshotStore = useSnapshotStore()
+const historyStore = useHistoryStore()
 
 const { componentData, canvasStyleData } = storeToRefs(editorStore)
 
@@ -86,11 +87,11 @@ const imageUploadRef = ref<UploadInstance>()
 const jsonUploadRef = ref<UploadInstance>()
 
 function undo() {
-  snapshotStore.undo()
+  historyStore.undo()
 }
 
 function redo() {
-  snapshotStore.redo()
+  historyStore.redo()
 }
 
 function preview() {
@@ -141,22 +142,23 @@ function processJSON() {
     }
 
     // 导入仅支持标准格式：{ componentData: [], canvasStyleData?: {} }（与导出一致）
-    if (!data || typeof data !== 'object' || !Array.isArray((data as any).componentData)) {
+    const parsed = data as { componentData?: unknown; canvasStyleData?: unknown } | null
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.componentData)) {
       ElMessage.error('请使用标准格式：{ componentData: [], canvasStyleData?: {} }')
       return
     }
-    const { componentData: list, canvasStyleData: style } = data as {
+    const { componentData: list, canvasStyleData: style } = parsed as {
       componentData: Component[]
       canvasStyleData?: CanvasStyle
     }
-    setDefaultComponentData(list)
     editorStore.setCurComponent(null, null)
     editorStore.setComponentData(list)
     if (style && typeof style === 'object') {
       editorStore.setCanvasStyle(style)
     }
 
-    snapshotStore.recordSnapshot()
+    // 导入：清空历史，以当前导入结果为基线
+    historyStore.clear()
     isShowDialog.value = false
     ElMessage.success('导入成功')
   } catch {
@@ -199,11 +201,19 @@ function onImageChange(uploadFile: UploadFile) {
 
       const component = deepCopy(tpl) as Component
       component.id = generateID()
-      const oldProp = (component.propValue || {}) as any
+      const oldProp = (component.propValue && typeof component.propValue === 'object'
+        ? (component.propValue as Record<string, unknown>)
+        : {}) as Record<string, unknown>
+      const prevFlip = (oldProp.flip && typeof oldProp.flip === 'object' ? (oldProp.flip as Record<string, unknown>) : null) as
+        | Record<string, unknown>
+        | null
       component.propValue = {
         ...oldProp,
         url: fileResult,
-        flip: oldProp.flip ?? { horizontal: false, vertical: false },
+        flip: {
+          horizontal: (prevFlip?.horizontal as boolean | undefined) ?? false,
+          vertical: (prevFlip?.vertical as boolean | undefined) ?? false,
+        },
       }
       component.style.top = 0
       component.style.left = 0
@@ -212,8 +222,7 @@ function onImageChange(uploadFile: UploadFile) {
 
       changeComponentSizeWithScale(component, editorStore.canvasStyleData.scale)
 
-      editorStore.addComponent(component)
-      snapshotStore.recordSnapshot()
+      historyStore.executeAdd(component, undefined, 'insert image component')
       ElMessage.success('图片已插入')
       // 允许重复选择同一文件也能触发
       imageUploadRef.value?.clearFiles()
@@ -229,8 +238,7 @@ function clearCanvas() {
     cancelButtonText: '取消',
     type: 'warning',
   }).then(() => {
-    editorStore.setComponentData([])
-    snapshotStore.recordSnapshot()
+    historyStore.executeClearCanvas('clear canvas')
   })
 }
 </script>

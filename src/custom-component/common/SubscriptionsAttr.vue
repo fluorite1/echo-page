@@ -57,16 +57,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
-import { useSnapshotStore } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 import generateID from '@/utils/generateID'
 import { ANIMATION_PRESETS } from '@/constants/animations'
 import type { Animation, AnimationAction, SubscriptionRule } from '@/types'
+import { deepCopy } from '@/utils/common'
 
 const editorStore = useEditorStore()
-const snapshotStore = useSnapshotStore()
+const historyStore = useHistoryStore()
 const { curComponent, componentData } = storeToRefs(editorStore)
 
 type RuleVM = SubscriptionRule & { actions: [AnimationAction] }
@@ -121,6 +122,19 @@ const animationOptions = computed(() => {
 })
 
 const infiniteFlags = reactive<Record<string, boolean>>({})
+const lastSubscriptions = ref<SubscriptionRule[] | null>(null)
+
+function snapshotSubscriptions(): SubscriptionRule[] {
+  return deepCopy(curComponent.value?.subscriptions ?? [])
+}
+
+watch(
+  curComponent,
+  () => {
+    lastSubscriptions.value = snapshotSubscriptions()
+  },
+  { immediate: true }
+)
 
 function addRule() {
   if (!curComponent.value) return
@@ -164,7 +178,12 @@ function syncLabel(rule: RuleVM) {
 }
 
 function record() {
-  snapshotStore.recordSnapshot()
+  const c = curComponent.value
+  if (!c) return
+  const before = lastSubscriptions.value ?? snapshotSubscriptions()
+  const after = snapshotSubscriptions()
+  historyStore.executeUpdate(c.id, { subscriptions: before }, { subscriptions: after }, 'update subscriptions')
+  lastSubscriptions.value = after
 }
 </script>
 

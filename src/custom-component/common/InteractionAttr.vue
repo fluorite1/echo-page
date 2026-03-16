@@ -74,18 +74,38 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
-import { useSnapshotStore } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 import { ANIMATION_PRESETS } from '@/constants/animations'
 import type { Animation, PreviewEventType } from '@/types'
+import { deepCopy } from '@/utils/common'
 
 const editorStore = useEditorStore()
-const snapshotStore = useSnapshotStore()
+const historyStore = useHistoryStore()
 const { curComponent } = storeToRefs(editorStore)
 
 const presets = ANIMATION_PRESETS
+
+type InteractionSnapshot = Pick<NonNullable<typeof curComponent.value>, 'triggerAnimations' | 'events'>
+const lastSnapshot = ref<InteractionSnapshot | null>(null)
+
+function snapshot(): InteractionSnapshot {
+  const c = curComponent.value
+  return {
+    triggerAnimations: deepCopy(c?.triggerAnimations ?? {}),
+    events: deepCopy(c?.events ?? {}),
+  } as any
+}
+
+watch(
+  curComponent,
+  () => {
+    lastSnapshot.value = snapshot()
+  },
+  { immediate: true }
+)
 
 function ensureTriggerAnimations() {
   if (!curComponent.value) return
@@ -180,7 +200,17 @@ function onChangeIteration(_eventType: PreviewEventType) {
 }
 
 function record() {
-  snapshotStore.recordSnapshot()
+  const c = curComponent.value
+  if (!c) return
+  const before = lastSnapshot.value ?? snapshot()
+  const after = snapshot()
+  historyStore.executeUpdate(
+    c.id,
+    { triggerAnimations: before.triggerAnimations, events: before.events },
+    { triggerAnimations: after.triggerAnimations, events: after.events },
+    'update interaction config'
+  )
+  lastSnapshot.value = after
 }
 </script>
 

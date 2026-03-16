@@ -21,12 +21,12 @@ import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
 import { useContextMenuStore } from '@/stores/contextmenu'
 import { useCopyStore } from '@/stores/copy'
-import { useSnapshotStore } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 
 const editorStore = useEditorStore()
 const contextMenuStore = useContextMenuStore()
 const copyStore = useCopyStore()
-const snapshotStore = useSnapshotStore()
+const historyStore = useHistoryStore()
 
 const { menuTop, menuLeft, menuShow } = storeToRefs(contextMenuStore)
 const { curComponent } = storeToRefs(editorStore)
@@ -36,8 +36,10 @@ function handleMouseUp() {
 }
 
 function cut() {
+  const id = editorStore.curComponent?.id
+  if (!id) return
   copyStore.cut()
-  snapshotStore.recordSnapshot()
+  historyStore.executeDeleteById(id, 'cut from context menu')
 }
 
 function copy() {
@@ -45,33 +47,48 @@ function copy() {
 }
 
 function paste() {
-  copyStore.paste(true)
-  snapshotStore.recordSnapshot()
+  const component = copyStore.createPastedComponent(true)
+  if (!component) return
+  historyStore.executeAdd(component, undefined, 'paste from context menu')
+  copyStore.afterPasteCommitted()
 }
 
 function deleteComponent() {
-  editorStore.deleteComponent()
-  snapshotStore.recordSnapshot()
+  if (editorStore.curComponent?.id) {
+    historyStore.executeDeleteById(editorStore.curComponent.id, 'delete from context menu')
+  }
 }
 
 function upComponent() {
-  editorStore.upComponent()
-  snapshotStore.recordSnapshot()
+  if (editorStore.curComponent?.id && editorStore.curComponentIndex !== null) {
+    const from = editorStore.curComponentIndex
+    const to = Math.min(editorStore.componentData.length - 1, from + 1)
+    historyStore.executeReorder(editorStore.curComponent.id, from, to, 'layer up from context menu')
+  }
 }
 
 function downComponent() {
-  editorStore.downComponent()
-  snapshotStore.recordSnapshot()
+  if (editorStore.curComponent?.id && editorStore.curComponentIndex !== null) {
+    const from = editorStore.curComponentIndex
+    const to = Math.max(0, from - 1)
+    historyStore.executeReorder(editorStore.curComponent.id, from, to, 'layer down from context menu')
+  }
 }
 
 function topComponent() {
-  editorStore.topComponent()
-  snapshotStore.recordSnapshot()
+  if (editorStore.curComponent?.id && editorStore.curComponentIndex !== null) {
+    const from = editorStore.curComponentIndex
+    const to = editorStore.componentData.length - 1
+    historyStore.executeReorder(editorStore.curComponent.id, from, to, 'layer to top from context menu')
+  }
 }
 
 function bottomComponent() {
-  editorStore.bottomComponent()
-  snapshotStore.recordSnapshot()
+  if (editorStore.curComponent?.id && editorStore.curComponentIndex !== null) {
+    const from = editorStore.curComponentIndex
+    const to = 0
+    historyStore.executeReorder(editorStore.curComponent.id, from, to, 'layer to bottom from context menu')
+  }
 }
 </script>
 
