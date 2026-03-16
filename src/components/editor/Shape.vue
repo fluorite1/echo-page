@@ -15,7 +15,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
-import { useSnapshotStore } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 import { useContextMenuStore } from '@/stores/contextmenu'
 import { eventBus } from '@/utils/eventBus'
 import calculateComponentPositionAndSize from '@/utils/calculatePosition'
@@ -32,7 +32,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const editorStore = useEditorStore()
-const snapshotStore = useSnapshotStore()
+const historyStore = useHistoryStore()
 const contextMenuStore = useContextMenuStore()
 const { curComponent, editor } = storeToRefs(editorStore)
 
@@ -112,6 +112,9 @@ function handleMouseDownOnShape(e: MouseEvent) {
   e.stopPropagation()
   editorStore.setCurComponent(props.element, props.index)
 
+  // 高频交互：移动只在 mouseup 时记录一次 update 命令
+  historyStore.beginUpdate(props.element.id, props.element, 'move component')
+
   const pos = { ...props.defaultStyle }
   const startY = e.clientY
   const startX = e.clientX
@@ -135,7 +138,11 @@ function handleMouseDownOnShape(e: MouseEvent) {
   }
 
   const up = () => {
-    if (hasMove) snapshotStore.recordSnapshot()
+    if (hasMove) {
+      historyStore.commitUpdate(props.element)
+    } else {
+      historyStore.cancelPendingUpdate()
+    }
     eventBus.emit('unmove')
     document.removeEventListener('mousemove', move)
     document.removeEventListener('mouseup', up)
@@ -187,6 +194,9 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
   let isFirst = true
   const needLockProportion = false
 
+  // 高频交互：缩放只在 mouseup 时记录一次 update 命令
+  historyStore.beginUpdate(props.element.id, props.element, 'resize component')
+
   const move = (moveEvent: MouseEvent) => {
     if (isFirst) {
       isFirst = false
@@ -211,7 +221,11 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
   const up = () => {
     document.removeEventListener('mousemove', move)
     document.removeEventListener('mouseup', up)
-    if (needSave) snapshotStore.recordSnapshot()
+    if (needSave) {
+      historyStore.commitUpdate(props.element)
+    } else {
+      historyStore.cancelPendingUpdate()
+    }
   }
 
   document.addEventListener('mousemove', move)

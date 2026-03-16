@@ -74,18 +74,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
-import { useSnapshotStore } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 import { ANIMATION_PRESETS } from '@/constants/animations'
-import type { Animation, PreviewEventType } from '@/types'
+import type { Animation, PreviewEventType, Component } from '@/types'
+import { deepCopy } from '@/utils/common'
 
 const editorStore = useEditorStore()
-const snapshotStore = useSnapshotStore()
+const historyStore = useHistoryStore()
 const { curComponent } = storeToRefs(editorStore)
 
 const presets = ANIMATION_PRESETS
+
+const lastSnapshot = ref<Component | null>(null)
+
+function snapshot(): Component | null {
+  return curComponent.value ? deepCopy(curComponent.value) : null
+}
+
+watch(
+  curComponent,
+  () => {
+    lastSnapshot.value = snapshot()
+  },
+  { immediate: true }
+)
 
 function ensureTriggerAnimations() {
   if (!curComponent.value) return
@@ -180,7 +195,13 @@ function onChangeIteration(_eventType: PreviewEventType) {
 }
 
 function record() {
-  snapshotStore.recordSnapshot()
+  const c = curComponent.value
+  if (!c) return
+  const before = lastSnapshot.value ?? snapshot()
+  const after = snapshot()
+  if (!before || !after) return
+  historyStore.executeUpdate(c.id, before, after, 'update interaction config')
+  lastSnapshot.value = after
 }
 </script>
 

@@ -30,10 +30,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
+import { useHistoryStore } from '@/stores/history'
 import { ElMessage } from 'element-plus'
+import { deepCopy } from '@/utils/common'
+import type { Component } from '@/types'
 
 const vFocus = {
   mounted(el: HTMLElement) {
@@ -45,11 +48,38 @@ const vFocus = {
 }
 
 const editorStore = useEditorStore()
+const historyStore = useHistoryStore()
 const { curComponent } = storeToRefs(editorStore)
 
 const curTd = ref('')
 const canEdit = ref(false)
 const preCurTd = ref('')
+
+const lastSnapshot = ref<Component | null>(null)
+const editBefore = ref<Component | null>(null)
+
+watch(
+  curComponent,
+  () => {
+    lastSnapshot.value = curComponent.value ? deepCopy(curComponent.value) : null
+    editBefore.value = null
+  },
+  { immediate: true }
+)
+
+function snapshotComponent(): Component | null {
+  return curComponent.value ? deepCopy(curComponent.value) : null
+}
+
+function record(label: string, beforeOverride?: Component | null) {
+  const c = curComponent.value
+  if (!c) return
+  const before = beforeOverride ?? lastSnapshot.value ?? snapshotComponent()
+  const after = snapshotComponent()
+  if (!before || !after) return
+  historyStore.executeUpdate(c.id, before, after, label)
+  lastSnapshot.value = after
+}
 
 function parseTd(td: string): { row: number; col: number } | null {
   const [r, c] = td.split(',')
@@ -68,6 +98,7 @@ const tableData = computed(() => {
 
 function onDblclick() {
   canEdit.value = true
+  editBefore.value = snapshotComponent()
 }
 
 function onClick(row: number, col: number) {
@@ -78,6 +109,10 @@ function onClick(row: number, col: number) {
 function onBlur() {
   canEdit.value = false
   curTd.value = ''
+
+  // 单元格编辑结束，记录一次 update
+  record('table cell edit', editBefore.value)
+  editBefore.value = null
 }
 
 function deleteRow() {
@@ -88,10 +123,12 @@ function deleteRow() {
   }
 
   tableData.value.splice(td.row, 1)
+  record('table delete row')
 }
 
 function addRow() {
   tableData.value.push(new Array(tableData.value[0]?.length || 1).fill(' '))
+  record('table add row')
 }
 
 function addCol() {
@@ -100,6 +137,7 @@ function addCol() {
   } else {
     tableData.value.push([' '])
   }
+  record('table add col')
 }
 
 function deleteCol() {
@@ -112,6 +150,7 @@ function deleteCol() {
   tableData.value.forEach((item: string[]) => {
     item.splice(td.col, 1)
   })
+  record('table delete col')
 }
 </script>
 

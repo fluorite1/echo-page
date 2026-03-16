@@ -6,8 +6,9 @@
           <el-form-item v-for="({ key, label }, index) in styleKeys" :key="index" :label="label">
             <el-color-picker
               v-if="isIncludesColor(key)"
-              v-model="curComponent!.style[key as keyof ComponentStyle]"
+              :model-value="String(curComponent!.style[key as keyof ComponentStyle] ?? '')"
               show-alpha
+              @update:model-value="(v) => ((curComponent!.style as any)[key] = v || '')"
               @change="handleStyleChange"
             />
             <el-select
@@ -42,17 +43,19 @@
 import { ref, computed, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
-import { useSnapshotStore } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 import { styleData, selectKey, optionMap } from '@/utils/attr'
-import type { ComponentStyle } from '@/types'
+import type { Component, ComponentStyle } from '@/types'
+import { deepCopy } from '@/utils/common'
 import InteractionAttr from '@/custom-component/common/InteractionAttr.vue'
 import SubscriptionsAttr from '@/custom-component/common/SubscriptionsAttr.vue'
 
 const editorStore = useEditorStore()
-const snapshotStore = useSnapshotStore()
+const historyStore = useHistoryStore()
 const { curComponent } = storeToRefs(editorStore)
 
 const activeName = ref('')
+const lastComponentSnapshot = ref<Component | null>(null)
 
 const styleKeys = computed(() => {
   if (curComponent.value) {
@@ -67,6 +70,7 @@ watch(
   () => {
     if (curComponent.value) {
       activeName.value = curComponent.value.collapseName || 'style'
+      lastComponentSnapshot.value = deepCopy(curComponent.value)
     }
   },
   { immediate: true }
@@ -79,7 +83,12 @@ function onChange() {
 }
 
 function handleStyleChange() {
-  snapshotStore.recordSnapshot()
+  const c = curComponent.value
+  if (!c) return
+  const before = lastComponentSnapshot.value ? deepCopy(lastComponentSnapshot.value) : deepCopy(c)
+  const after = deepCopy(c)
+  historyStore.executeUpdate(c.id, before, after, 'update common style')
+  lastComponentSnapshot.value = after
 }
 
 function isIncludesColor(str: string): boolean {

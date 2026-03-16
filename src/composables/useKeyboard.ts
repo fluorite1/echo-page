@@ -1,7 +1,7 @@
 import { onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/stores/editor'
 import { useCopyStore } from '@/stores/copy'
-import { useSnapshotStore } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 import { eventBus } from '@/utils/eventBus'
 
 const ctrlKey = 17
@@ -22,28 +22,32 @@ let isCtrlOrCommandDown = false
 export function useKeyboard() {
   const editorStore = useEditorStore()
   const copyStore = useCopyStore()
-  const snapshotStore = useSnapshotStore()
+  const historyStore = useHistoryStore()
 
   function copy() {
     copyStore.copy()
   }
 
   function paste() {
-    copyStore.paste()
-    snapshotStore.recordSnapshot()
+    const component = copyStore.createPastedComponent(false)
+    if (!component) return
+    historyStore.executeAdd(component, undefined, 'paste component')
+    copyStore.afterPasteCommitted()
   }
 
   function cut() {
+    const id = editorStore.curComponent?.id
+    if (!id) return
     copyStore.cut()
-    snapshotStore.recordSnapshot()
+    historyStore.executeDeleteById(id, 'cut component')
   }
 
   function redo() {
-    snapshotStore.redo()
+    historyStore.redo()
   }
 
   function undo() {
-    snapshotStore.undo()
+    historyStore.undo()
   }
 
   function save() {
@@ -55,10 +59,9 @@ export function useKeyboard() {
   }
 
   function deleteComponent() {
-    if (editorStore.curComponent) {
-      editorStore.deleteComponent()
-      snapshotStore.recordSnapshot()
-    }
+    const id = editorStore.curComponent?.id
+    if (!id) return
+    historyStore.executeDeleteById(id, 'delete component')
   }
 
   function clearCanvas() {
@@ -91,8 +94,7 @@ export function useKeyboard() {
     if (keyCode === ctrlKey || keyCode === commandKey) {
       isCtrlOrCommandDown = true
     } else if (keyCode === deleteKey && curComponent) {
-      editorStore.deleteComponent()
-      snapshotStore.recordSnapshot()
+      historyStore.executeDeleteById(curComponent.id, 'delete component by delete key')
     } else if (isCtrlOrCommandDown && unlockMap[keyCode]) {
       e.preventDefault()
       unlockMap[keyCode]()

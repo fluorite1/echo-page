@@ -29,8 +29,7 @@
 import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
-import { useSnapshotStore } from '@/stores/snapshot'
-import { setDefaultComponentData } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 import { deepCopy } from '@/utils/common'
 import generateID from '@/utils/generateID'
 import { changeComponentSizeWithScale } from '@/utils/changeComponentsSize'
@@ -44,7 +43,7 @@ import RealTimeComponentList from '@/components/RealTimeComponentList.vue'
 import CanvasAttr from '@/components/CanvasAttr.vue'
 
 const editorStore = useEditorStore()
-const snapshotStore = useSnapshotStore()
+const historyStore = useHistoryStore()
 const { editor, curComponent } = storeToRefs(editorStore)
 
 // 初始化快捷键
@@ -63,13 +62,14 @@ function restore() {
 
   if (canvasData) {
     const data = JSON.parse(canvasData)
-    setDefaultComponentData(data)
     editorStore.setComponentData(data)
   }
 
   if (canvasStyle) {
     editorStore.setCanvasStyle(JSON.parse(canvasStyle))
   }
+  // 进入编辑页：清空历史，以当前画布为基线（教学项目：不跨页面保留历史）
+  historyStore.clear()
 }
 
 function handleDrop(e: DragEvent) {
@@ -93,9 +93,7 @@ function handleDrop(e: DragEvent) {
   component.id = generateID()
 
   changeComponentSizeWithScale(component, editorStore.canvasStyleData.scale)
-
-  editorStore.addComponent(component)
-  snapshotStore.recordSnapshot()
+  historyStore.executeAdd(component, undefined, 'drop component from palette')
 }
 
 function handleDragOver(e: DragEvent) {

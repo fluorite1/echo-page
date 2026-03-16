@@ -1,7 +1,6 @@
 ## 项目概览
 
-本项目是一个可视化页面编辑器教学示例，基于 **Vite + Vue 3 + TypeScript + Pinia + Vue Router + Element Plus + ECharts** 实现。  
-目标是让读者能清晰理解「画布编辑 → 状态管理 → 预览运行时」的完整链路。
+本项目是一个可视化页面编辑器，基于 **Vite + Vue 3 + TypeScript + Pinia + Vue Router + Element Plus + ECharts** 实现。
 
 - **运行时形态**：所有组件和画布都是「数据驱动」——编辑区只修改 `Component[]` 和 `CanvasStyle`，预览区根据同一份 schema 渲染。
 - **核心数据结构**：`Component`（组件 schema）、`CanvasStyle`（画布样式）定义于 `src/types`，贯穿全工程。
@@ -10,7 +9,7 @@
 
 - `src/main.ts` / `App.vue`：应用入口
 - `src/router/`：路由（编辑页、预览页）
-- `src/stores/`：Pinia store（编辑状态、撤销重做、剪贴板、右键菜单）
+- `src/stores/`：Pinia store（编辑状态、命令历史 undo/redo、剪贴板、右键菜单）
 - `src/components/`：通用 UI 组件（Toolbar、Editor、属性面板等）
 - `src/custom-component/`：可被拖拽的业务组件及其 Attr 面板、预览运行时
 - `src/utils/`：工具函数（样式、缩放、动画、事件总线、请求封装等）
@@ -30,8 +29,6 @@
 3. **schema 与类型层**（`Component` / `CanvasStyle` 等）
 4. **运行时与行为层**（预览运行时、交互、请求与动画）
 5. **工具与基础设施层**（工具函数、常量、样式）
-
-下面按层介绍。
 
 ---
 
@@ -63,7 +60,7 @@
     - 清空画布
     - 画布尺寸输入
   - 与 store 交互：
-    - 调用 `snapshotStore.undo/redo` 实现撤销重做。
+    - 调用 `historyStore.undo/redo` 实现撤销重做（命令模式）。
     - 调用 `editorStore.setComponentData` / `setCanvasStyle` 更新画布。
 
 ### 1.3 左侧组件列表 & 图层列表
@@ -98,6 +95,7 @@
     - 拖拽移动。
     - 更新当前选中组件。
   - 使用 `utils/calculatePosition.ts` 计算各个缩放点对应的样式变更。
+  - **高频交互**：拖拽移动/缩放过程中不入栈，只在 `mouseup` 时用 `historyStore.beginUpdate/commitUpdate` 记录一次 `update` 命令。
 
 ### 1.5 右键菜单与辅助组件
 
@@ -107,7 +105,7 @@
     - 复制 / 剪切 / 粘贴（委托 `copyStore`）
     - 删除组件
     - 上移 / 下移 / 置顶 / 置底
-  - 每次会同步调用 `snapshotStore.recordSnapshot()`，保证撤销链完整。
+  - 对会改变画布数据的操作，会执行 `historyStore` 的命令（add/delete/reorder）。
 
 - `src/components/editor/MarkLine.vue`
   - 根据当前拖拽组件与其他组件的边界差值，在对齐时显示辅助线。
@@ -153,23 +151,29 @@
 - `setCanvasStyle(style)`：设置画布样式。
 - 上移 / 下移 / 置顶 / 置底：通过数组 `splice` 调整顺序。
 
-### 2.2 撤销/重做 store：`snapshot.ts`
+### 2.2 命令历史 store：`history.ts`
 
-- `snapshotData: Component[][]`：快照栈。
-- `snapshotIndex: number`：当前指针。
-- `lastScale: number`：上次缩放，恢复时可按比例调整组件尺寸。
-- `defaultComponentData: Component[]`：
-  - 通过 `setDefaultComponentData` 设置为「初始状态」（可能是空，也可能是导入时的初始态）。
-  - 当 `undo` 超过首帧时，用它恢复。
+撤销/重做采用 **命令模式（Command Pattern）**，只记录四类基础操作：
 
-方法：
+- `add`：添加组件
+- `delete`：删除组件
+- `update`：更新组件属性（移动/缩放/样式/交互/文本等都归为 update）
+- `reorder`：图层排序（方案二：记录 `id + fromIndex + toIndex`，线性栈下回放稳定）
 
-- `recordSnapshot()`：将当前 `componentData` 深拷贝后推入栈（内部命名为 `snapshotCopy`）。
-- `undo()`：
-  - 指针前移。
-  - 若已越过首帧，则使用 `defaultComponentData`。
-  - 调用 `editorStore.setComponentData` 恢复组件。
-- `redo()`：指针后移并恢复。
+核心状态：
+
+- `done: HistoryCommand[]`：已执行命令栈
+- `undone: HistoryCommand[]`：撤销后的命令栈（redo）
+- `MAX_HISTORY = 100`：命令阈值，超过会裁剪最早历史
+
+常用 API：
+
+- `executeAdd(component, index?, label?)`
+- `executeDeleteById(id, label?)`
+- `executeUpdate(id, beforePatch, afterPatch, label?)`
+- `executeReorder(id, from, to, label?)`
+- `beginUpdate(id, beforePatch, label?)` + `commitUpdate(afterPatch)`：用于高频交互只在结束时入栈一次
+- `undo()` / `redo()` / `clear()`
 
 ### 2.3 右键菜单 store：`contextmenu.ts`
 
@@ -186,12 +190,9 @@
 方法：
 
 - `copy()`：深拷贝当前选中组件到剪贴板。
-- `cut()`：调用 `copy()` 后删除原组件，并标记 `isCut`。
-- `paste(isMouse = false)`：
-  - 基于 `clipboardComponent` 深拷贝新组件并生成新 `id`。
-  - 鼠标粘贴：使用右键菜单位置。
-  - 键盘粘贴：相对原件偏移 `PASTE_OFFSET_PX`。
-  - `propValue` 使用 `recursiveCopy` 递归克隆，确保嵌套组件（如表格）也有新 id。
+- `cut()`：仅标记剪切模式（剪贴板仍保存组件快照）；删除与入栈由调用方执行 `historyStore.executeDeleteById`。
+- `createPastedComponent(isMouse)`：生成“可粘贴的新组件”（不直接写入画布），由调用方执行 `historyStore.executeAdd`。
+- `afterPasteCommitted()`：粘贴命令执行后调用；若是剪切粘贴，会清空剪贴板并退出剪切模式。
 
 ---
 
@@ -332,11 +333,10 @@
    - 先看 `views/Home.vue` 与 `components/Toolbar.vue`，理解界面布局和「保存/恢复」。
    - 再读 `types/component.ts`、`types/canvas.ts`，理解 `Component` 和 `CanvasStyle` 长什么样。
 2. **再看状态与编辑逻辑**
-   - 阅读 `stores/editor.ts`、`stores/snapshot.ts`、`stores/copy.ts`，理解状态管理与撤销/粘贴。
+   - 阅读 `stores/editor.ts`、`stores/history.ts`、`stores/copy.ts`，理解状态管理与命令式撤销/粘贴。
    - 对照 `components/editor/Editor.vue`、`Shape.vue` 看「操作如何落到 schema 上」。
 3. **最后看预览运行时与高级功能**
    - 阅读 `components/editor/Preview.vue` 与 `custom-component/previewRuntime.ts`，理解预览如何重用同一份 schema。
    - 看 `custom-component/common/InteractionAttr.vue`、`SubscriptionsAttr.vue` 了解动画与订阅。
 
 通过以上路径，可以比较完整地掌握本项目的工程架构与软件架构设计。
-

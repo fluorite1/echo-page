@@ -21,10 +21,10 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
-import { useSnapshotStore } from '@/stores/snapshot'
+import { useHistoryStore } from '@/stores/history'
 
 const editorStore = useEditorStore()
-const snapshotStore = useSnapshotStore()
+const historyStore = useHistoryStore()
 const { componentData, curComponent, curComponentIndex } = storeToRefs(editorStore)
 
 function getComponent(index: number) {
@@ -44,8 +44,9 @@ function onClick(index: number) {
 
 function deleteComponent(index: number) {
   setTimeout(() => {
-    editorStore.deleteComponent(index)
-    snapshotStore.recordSnapshot()
+    const component = componentData.value[index]
+    if (!component) return
+    historyStore.executeDeleteById(component.id, 'delete from layer list')
   })
 }
 
@@ -53,9 +54,10 @@ function upComponent(index: number) {
   setTimeout(() => {
     const component = componentData.value[index]
     if (component) {
+      const from = index
+      const to = Math.min(componentData.value.length - 1, from + 1)
       editorStore.setCurComponent(component, index)
-      editorStore.upComponent()
-      snapshotStore.recordSnapshot()
+      historyStore.executeReorder(component.id, from, to, 'layer move up from list')
     }
   })
 }
@@ -64,9 +66,10 @@ function downComponent(index: number) {
   setTimeout(() => {
     const component = componentData.value[index]
     if (component) {
+      const from = index
+      const to = Math.max(0, from - 1)
       editorStore.setCurComponent(component, index)
-      editorStore.downComponent()
-      snapshotStore.recordSnapshot()
+      historyStore.executeReorder(component.id, from, to, 'layer move down from list')
     }
   })
 }
