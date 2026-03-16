@@ -6,8 +6,9 @@
           <el-form-item v-for="({ key, label }, index) in styleKeys" :key="index" :label="label">
             <el-color-picker
               v-if="isIncludesColor(key)"
-              v-model="curComponent!.style[key as keyof ComponentStyle]"
+              :model-value="String(curComponent!.style[key as keyof ComponentStyle] ?? '')"
               show-alpha
+              @update:model-value="(v) => ((curComponent!.style as any)[key] = v || '')"
               @change="handleStyleChange"
             />
             <el-select

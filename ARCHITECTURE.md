@@ -1,7 +1,6 @@
 ## 项目概览
 
-本项目是一个可视化页面编辑器教学示例，基于 **Vite + Vue 3 + TypeScript + Pinia + Vue Router + Element Plus + ECharts** 实现。  
-目标是让读者能清晰理解「画布编辑 → 状态管理 → 预览运行时」的完整链路。
+本项目是一个可视化页面编辑器，基于 **Vite + Vue 3 + TypeScript + Pinia + Vue Router + Element Plus + ECharts** 实现。
 
 - **运行时形态**：所有组件和画布都是「数据驱动」——编辑区只修改 `Component[]` 和 `CanvasStyle`，预览区根据同一份 schema 渲染。
 - **核心数据结构**：`Component`（组件 schema）、`CanvasStyle`（画布样式）定义于 `src/types`，贯穿全工程。
@@ -30,8 +29,6 @@
 3. **schema 与类型层**（`Component` / `CanvasStyle` 等）
 4. **运行时与行为层**（预览运行时、交互、请求与动画）
 5. **工具与基础设施层**（工具函数、常量、样式）
-
-下面按层介绍。
 
 ---
 
@@ -343,4 +340,3 @@
    - 看 `custom-component/common/InteractionAttr.vue`、`SubscriptionsAttr.vue` 了解动画与订阅。
 
 通过以上路径，可以比较完整地掌握本项目的工程架构与软件架构设计。
-

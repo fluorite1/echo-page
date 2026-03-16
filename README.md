@@ -1,6 +1,4 @@
-## echo-page（教学项目）
-
-本项目是一个可视化页面编辑器教学示例，基于 **Vite + Vue 3 + TypeScript + Pinia + Vue Router + Element Plus + ECharts** 实现。
+本项目是一个可视化页面编辑器，基于 **Vite + Vue 3 + TypeScript + Pinia + Vue Router + Element Plus + ECharts** 实现。
 
 - **数据驱动**：编辑区只修改 `Component[]` 与 `CanvasStyle`，预览区复用同一份 schema 渲染。
 - **Undo/Redo（命令模式）**：用 `add / delete / update / reorder` 四类命令实现撤销/重做；拖拽/缩放/文本编辑等高频交互只在结束时记录一次命令。

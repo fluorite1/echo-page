@@ -5,8 +5,9 @@
       <el-form-item v-for="(value, key) in options" :key="key" :label="value">
         <el-color-picker
           v-if="isIncludesColor(key)"
-          v-model="canvasStyleData[key as keyof typeof canvasStyleData]"
+          :model-value="(canvasStyleData as any)[key] as string"
           show-alpha
+          @update:model-value="(v) => ((canvasStyleData as any)[key] = v || '')"
         />
         <el-input
           v-else
