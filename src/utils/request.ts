@@ -75,7 +75,7 @@ export default function requestWrapper(
   options: RequestConfig,
   obj: any,
   key: string,
-  responseType: 'object' | 'array' | 'string' = 'object'
+  responseType: 'object' | 'array' | 'string' = 'object',
 ): () => void {
   let count = 0
   let timer: number | undefined

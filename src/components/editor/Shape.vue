@@ -246,8 +246,8 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
   border: 1px solid #59c7f9;
   width: 8px;
   height: 8px;
-  margin-left: '-4px';
-  margin-top: '-4px';
+  margin-left: -4px;
+  margin-top: -4px;
   border-radius: 50%;
   z-index: 1;
 }

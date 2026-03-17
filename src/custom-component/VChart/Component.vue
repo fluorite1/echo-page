@@ -1,5 +1,5 @@
 <template>
-  <v-chart class="chart" :option="propValue.option" autoresize />
+  <VChart class="chart" :option="propValue.option" autoresize />
 </template>
 
 <script setup lang="ts">
@@ -7,7 +7,12 @@ import { onBeforeUnmount, watch } from 'vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { ScatterChart, BarChart, LineChart } from 'echarts/charts'
-import { TitleComponent, TooltipComponent, LegendComponent, GridComponent } from 'echarts/components'
+import {
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  GridComponent,
+} from 'echarts/components'
 import VChart from 'vue-echarts'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
@@ -58,8 +63,7 @@ function applyResponse(option: any, data: any) {
   }
   if (!data || typeof data !== 'object') return
   const d = data as Record<string, unknown>
-  const seriesData =
-    (Array.isArray(d.series) && (d.series as any[])[0]?.data) ?? d.data
+  const seriesData = (Array.isArray(d.series) && (d.series as any[])[0]?.data) ?? d.data
   if (Array.isArray(seriesData) && option?.series) option.series.data = seriesData
   const xAxisData = (d.xAxis as any)?.data ?? d.xAxisData
   if (Array.isArray(xAxisData) && option?.xAxis) option.xAxis.data = xAxisData
