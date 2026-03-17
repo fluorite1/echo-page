@@ -69,7 +69,6 @@ import type { UploadFile, UploadInstance } from 'element-plus'
 import generateID from '@/utils/generateID'
 import { deepCopy } from '@/utils/common'
 import componentList from '@/custom-component/component-list'
-import { changeComponentSizeWithScale } from '@/utils/changeComponentsSize'
 import type { Component, CanvasStyle } from '@/types'
 import { LOCAL_STORAGE_KEYS } from '@/constants/storage'
 
@@ -219,8 +218,6 @@ function onImageChange(uploadFile: UploadFile) {
       component.style.left = 0
       component.style.width = img.width
       component.style.height = img.height
-
-      changeComponentSizeWithScale(component, editorStore.canvasStyleData.scale)
 
       historyStore.executeAdd(component, undefined, 'insert image component')
       ElMessage.success('图片已插入')

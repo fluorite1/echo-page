@@ -34,7 +34,6 @@ export interface UpdateCommand extends BaseCommand {
 
 export interface ReorderCommand extends BaseCommand {
   type: 'reorder'
-  id: string
   from: number
   to: number
 }
@@ -44,7 +43,12 @@ export interface BatchCommand extends BaseCommand {
   children: HistoryCommand[]
 }
 
-export type HistoryCommand = AddCommand | DeleteCommand | UpdateCommand | ReorderCommand | BatchCommand
+export type HistoryCommand =
+  | AddCommand
+  | DeleteCommand
+  | UpdateCommand
+  | ReorderCommand
+  | BatchCommand
 
 const MAX_HISTORY = 100
 
@@ -99,9 +103,13 @@ export const useHistoryStore = defineStore('history', () => {
     pendingUpdate.value = null
   }
 
-  // ---------- 命令构造器（教学项目：集中在这里，调用方更清爽） ----------
+  // ---------- 命令构造器 ----------
 
-  function createAddCommand(component: Component, index = editorStore.componentData.length, label?: string): AddCommand {
+  function createAddCommand(
+    component: Component,
+    index = editorStore.componentData.length,
+    label?: string,
+  ): AddCommand {
     const snapshot = deepCopy(component)
     return {
       type: 'add',
@@ -112,52 +120,38 @@ export const useHistoryStore = defineStore('history', () => {
         editorStore.addComponent(deepCopy(snapshot), index)
       },
       undo() {
-        editorStore.removeComponentById(snapshot.id)
+        editorStore.deleteComponent(index)
+      },
+    }
+  }
+
+  function createDeleteCommand(index: number, label?: string): DeleteCommand | null {
+    const component = editorStore.getComponentByIndex(index)
+    if (!component) return null
+    const snapshot = deepCopy(component)
+    return {
+      type: 'delete',
+      label,
+      component: snapshot,
+      index,
+      do() {
+        editorStore.deleteComponent(index)
+      },
+      undo() {
+        editorStore.addComponent(deepCopy(snapshot), index)
       },
     }
   }
 
   function createDeleteCommandById(id: string, label?: string): DeleteCommand | null {
     const index = editorStore.findIndexById(id)
-    const component = editorStore.getComponentById(id)
-    if (index < 0 || !component) return null
-
-    const snapshot = deepCopy(component)
-    return {
-      type: 'delete',
-      label,
-      component: snapshot,
-      index,
-      do() {
-        editorStore.deleteComponent(index)
-      },
-      undo() {
-        editorStore.addComponent(deepCopy(snapshot), index)
-      },
-    }
+    return createDeleteCommand(index, label)
   }
 
-  function createDeleteCommandFromSnapshot(component: Component, index: number, label?: string): DeleteCommand {
-    const snapshot = deepCopy(component)
-    return {
-      type: 'delete',
-      label,
-      component: snapshot,
-      index,
-      do() {
-        editorStore.deleteComponent(index)
-      },
-      undo() {
-        editorStore.addComponent(deepCopy(snapshot), index)
-      },
-    }
-  }
-
-  function createReorderCommand(id: string, from: number, to: number, label?: string): ReorderCommand {
+  function createReorderCommand(from: number, to: number, label?: string): ReorderCommand {
     return {
       type: 'reorder',
       label,
-      id,
       from,
       to,
       do() {
@@ -184,7 +178,12 @@ export const useHistoryStore = defineStore('history', () => {
     }
   }
 
-  function createUpdateCommand(id: string, before: Component, after: Component, label?: string): UpdateCommand {
+  function createUpdateCommandById(
+    id: string,
+    before: Component,
+    after: Component,
+    label?: string,
+  ): UpdateCommand {
     const beforeCopy = deepCopy(before)
     const afterCopy = deepCopy(after)
     return {
@@ -220,17 +219,15 @@ export const useHistoryStore = defineStore('history', () => {
     if (list.length === 0) return
 
     // 从后往前删除：删除时 index 稳定；undo 逆序执行会按 0..n-1 依次插回
-    const deletes: HistoryCommand[] = []
+    const deletes: DeleteCommand[] = []
     for (let i = list.length - 1; i >= 0; i--) {
-      const item = list[i]
-      if (!item) continue
-      deletes.push(createDeleteCommandFromSnapshot(item, i))
+      deletes.push(createDeleteCommand(i) as DeleteCommand)
     }
     executeBatch(deletes, label ?? 'clear canvas')
   }
 
-  function executeReorder(id: string, from: number, to: number, label?: string) {
-    execute(createReorderCommand(id, from, to, label))
+  function executeReorder(from: number, to: number, label?: string) {
+    execute(createReorderCommand(from, to, label))
   }
 
   /** 批量执行（一次入栈）：do 顺序执行，undo 逆序执行 */
@@ -250,7 +247,7 @@ export const useHistoryStore = defineStore('history', () => {
     if (!p) return
     pendingUpdate.value = null
 
-    const cmd = createUpdateCommand(p.id, p.before, after, p.label)
+    const cmd = createUpdateCommandById(p.id, p.before, after, p.label)
     execute(cmd)
   }
 
@@ -260,7 +257,7 @@ export const useHistoryStore = defineStore('history', () => {
 
   // 低频：直接一次性 update
   function executeUpdate(id: string, before: Component, after: Component, label?: string) {
-    execute(createUpdateCommand(id, before, after, label))
+    execute(createUpdateCommandById(id, before, after, label))
   }
 
   return {
@@ -279,11 +276,9 @@ export const useHistoryStore = defineStore('history', () => {
     executeDeleteById,
     executeClearCanvas,
     executeReorder,
-    executeBatch,
     beginUpdate,
     commitUpdate,
     cancelPendingUpdate,
     executeUpdate,
   }
 })
-

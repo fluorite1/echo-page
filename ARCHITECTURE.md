@@ -140,7 +140,7 @@
 - `curComponent: Component | null` / `curComponentIndex: number | null`：当前选中组件及索引。
 - `canvasStyleData: CanvasStyle`：画布宽高、缩放、背景等。
 - `editMode: 'edit' | 'preview'`：编辑 / 预览模式。
-- 其他 UI 状态：`isClickComponent`、`isInEditor`、`rightList`、`editor`（DOM 引用）。
+- 其他 UI 状态：`isClickComponent`、`isInEditor`、`editor`（DOM 引用）。
 
 主要方法：
 
@@ -253,17 +253,6 @@
   - 解绑所有事件、清理动画与定时器。
 
 ### 4.2 键盘与事件总线
-
-- `src/composables/useKeyboard.ts`
-  - 全局监听 `keydown/keyup/mousedown`。
-  - 支持：
-    - Ctrl/Cmd + C/V/X：复制 / 粘贴 / 剪切。
-    - Ctrl/Cmd + Z/Y：撤销 / 重做。
-    - Ctrl/Cmd + S：保存。
-    - Ctrl/Cmd + P：预览。
-    - Delete / D：删除。
-    - E：清空画布。
-  - 通过 `eventBus` 派发部分事件（如 save、preview、clearCanvas）。
 
 - `src/utils/eventBus.ts`
   - 基于 `mitt` 的简单事件总线，定义了常用事件类型（移动、预览、保存、动画控制等）。

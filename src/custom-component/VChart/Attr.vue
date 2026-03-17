@@ -3,20 +3,48 @@
     <CommonAttr />
     <el-form label-width="80px" size="small" style="padding: 10px">
       <el-form-item label="标题">
-        <el-switch v-model="option.title.show" active-text="显示标题" @change="record('chart option title show')" />
-        <el-input v-model="option.title.text" placeholder="请输入内容" @change="record('chart option title text')" />
+        <el-switch
+          v-model="option.title.show"
+          active-text="显示标题"
+          @change="record('chart option title show')"
+        />
+        <el-input
+          v-model="option.title.text"
+          placeholder="请输入内容"
+          @change="record('chart option title text')"
+        />
       </el-form-item>
+
       <el-form-item label="工具提示">
-        <el-switch v-model="option.tooltip.show" active-text="显示提示" @change="record('chart option tooltip show')" />
+        <el-switch
+          v-model="option.tooltip.show"
+          active-text="显示提示"
+          @change="record('chart option tooltip show')"
+        />
       </el-form-item>
+
       <el-form-item label="图例">
-        <el-switch v-model="option.legend.show" active-text="显示图例" @change="record('chart option legend show')" />
+        <el-switch
+          v-model="option.legend.show"
+          active-text="显示图例"
+          @change="record('chart option legend show')"
+        />
       </el-form-item>
+
       <el-form-item label="横坐标">
-        <el-switch v-model="option.xAxis.show" active-text="显示横坐标" @change="record('chart option xAxis show')" />
+        <el-switch
+          v-model="option.xAxis.show"
+          active-text="显示横坐标"
+          @change="record('chart option xAxis show')"
+        />
       </el-form-item>
+
       <el-form-item label="图表类型">
-        <el-select v-model="option.series.type" placeholder="选择图表类型" @change="record('chart option series type')">
+        <el-select
+          v-model="option.series.type"
+          placeholder="选择图表类型"
+          @change="record('chart option series type')"
+        >
           <el-option
             v-for="chart in charts"
             :key="chart.value"
@@ -25,49 +53,79 @@
           />
         </el-select>
       </el-form-item>
+
       <el-form-item label="静态数据">
         <el-button @click="dialogVisible = true">修改数据</el-button>
       </el-form-item>
 
       <el-divider content-position="left">数据来源（预览生效）</el-divider>
       <el-form-item label="请求地址">
-        <el-input v-model.trim="request.url" placeholder="例如：https://example.com/api/data" @change="record('chart request url')" />
+        <el-input
+          v-model.trim="request.url"
+          placeholder="例如：https://example.com/api/data"
+          @change="record('chart request url')"
+        />
       </el-form-item>
+
       <el-form-item label="请求方法">
         <el-select v-model="request.method" @change="record('chart request method')">
           <el-option label="GET" value="GET" />
           <el-option label="POST" value="POST" />
         </el-select>
       </el-form-item>
+
       <el-form-item label="参数类型">
         <el-select v-model="request.paramType">
           <el-option label="object" value="object" />
           <el-option label="array" value="array" />
         </el-select>
       </el-form-item>
+
       <el-form-item v-if="request.paramType === 'object'" label="请求参数">
         <div class="kv-list">
           <div v-for="(kv, i) in request.data" :key="i" class="kv-row">
             <el-input v-model="kv[0]" placeholder="key" @change="record('chart request kv key')" />
-            <el-input v-model="kv[1]" placeholder="value" @change="record('chart request kv value')" />
+            <el-input
+              v-model="kv[1]"
+              placeholder="value"
+              @change="record('chart request kv value')"
+            />
             <el-button text type="danger" @click="removeKV(i)">删除</el-button>
           </div>
           <el-button @click="addKV">添加参数</el-button>
         </div>
       </el-form-item>
+
       <el-form-item v-else label="请求参数">
-        <el-input v-model="arrayText" type="textarea" :rows="3" placeholder="JSON数组，例如：[1,2,3]" />
+        <el-input
+          v-model="arrayText"
+          type="textarea"
+          :rows="3"
+          placeholder="JSON数组，例如：[1,2,3]"
+        />
         <el-button style="margin-top: 8px" @click="applyArray">应用</el-button>
       </el-form-item>
+
       <el-form-item label="定时刷新">
         <el-switch v-model="request.series" @change="record('chart request series')" />
       </el-form-item>
+
       <template v-if="request.series">
         <el-form-item label="间隔(ms)">
-          <el-input-number v-model="request.time" :min="200" :step="100" @change="record('chart request time')" />
+          <el-input-number
+            v-model="request.time"
+            :min="200"
+            :step="100"
+            @change="record('chart request time')"
+          />
         </el-form-item>
         <el-form-item label="次数(0无限)">
-          <el-input-number v-model="request.requestCount" :min="0" :step="1" @change="record('chart request count')" />
+          <el-input-number
+            v-model="request.requestCount"
+            :min="0"
+            :step="1"
+            @change="record('chart request count')"
+          />
         </el-form-item>
       </template>
     </el-form>
@@ -167,7 +225,7 @@ watch(
   () => {
     lastSnapshot.value = snapshotComponent()
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 function record(label: string) {

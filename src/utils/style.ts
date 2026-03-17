@@ -79,7 +79,7 @@ export function getComponentRect(style: ComponentStyle) {
 }
 
 /** 画布容器样式不直接使用的 key（宽高在模板里单独写 px） */
-const canvasStyleFilterKeys = ['width', 'height', 'scale']
+const canvasStyleFilterKeys = ['width', 'height']
 export function getCanvasStyle(canvasStyleData: Record<string, any>): Record<string, string | number> {
   const result: Record<string, string | number> = {}
   Object.keys(canvasStyleData)

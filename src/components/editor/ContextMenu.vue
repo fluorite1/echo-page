@@ -1,5 +1,9 @@
 <template>
-  <div v-show="menuShow" class="contextmenu" :style="{ top: menuTop + 'px', left: menuLeft + 'px' }">
+  <div
+    v-show="menuShow"
+    class="contextmenu"
+    :style="{ top: menuTop + 'px', left: menuLeft + 'px' }"
+  >
     <ul @mouseup="handleMouseUp">
       <template v-if="curComponent">
         <li @click="copy">复制</li>
@@ -47,10 +51,12 @@ function copy() {
 }
 
 function paste() {
-  const component = copyStore.createPastedComponent(true)
+  const component = copyStore.createPastedComponent(
+    contextMenuStore.menuTop,
+    contextMenuStore.menuLeft,
+  )
   if (!component) return
   historyStore.executeAdd(component, undefined, 'paste from context menu')
-  copyStore.afterPasteCommitted()
 }
 
 function deleteComponent() {
@@ -63,7 +69,7 @@ function upComponent() {
   if (editorStore.curComponent?.id && editorStore.curComponentIndex !== null) {
     const from = editorStore.curComponentIndex
     const to = Math.min(editorStore.componentData.length - 1, from + 1)
-    historyStore.executeReorder(editorStore.curComponent.id, from, to, 'layer up from context menu')
+    historyStore.executeReorder(from, to, 'layer up from context menu')
   }
 }
 
@@ -71,7 +77,7 @@ function downComponent() {
   if (editorStore.curComponent?.id && editorStore.curComponentIndex !== null) {
     const from = editorStore.curComponentIndex
     const to = Math.max(0, from - 1)
-    historyStore.executeReorder(editorStore.curComponent.id, from, to, 'layer down from context menu')
+    historyStore.executeReorder(from, to, 'layer down from context menu')
   }
 }
 
@@ -79,7 +85,7 @@ function topComponent() {
   if (editorStore.curComponent?.id && editorStore.curComponentIndex !== null) {
     const from = editorStore.curComponentIndex
     const to = editorStore.componentData.length - 1
-    historyStore.executeReorder(editorStore.curComponent.id, from, to, 'layer to top from context menu')
+    historyStore.executeReorder(from, to, 'layer to top from context menu')
   }
 }
 
@@ -87,7 +93,7 @@ function bottomComponent() {
   if (editorStore.curComponent?.id && editorStore.curComponentIndex !== null) {
     const from = editorStore.curComponentIndex
     const to = 0
-    historyStore.executeReorder(editorStore.curComponent.id, from, to, 'layer to bottom from context menu')
+    historyStore.executeReorder(from, to, 'layer to bottom from context menu')
   }
 }
 </script>

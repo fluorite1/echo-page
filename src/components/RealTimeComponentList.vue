@@ -12,7 +12,10 @@
       <div class="icon-container">
         <span class="iconfont icon-shangyi" @click.stop="upComponent(transformIndex(index))"></span>
         <span class="iconfont icon-xiayi" @click.stop="downComponent(transformIndex(index))"></span>
-        <span class="iconfont icon-shanchu" @click.stop="deleteComponent(transformIndex(index))"></span>
+        <span
+          class="iconfont icon-shanchu"
+          @click.stop="deleteComponent(transformIndex(index))"
+        ></span>
       </div>
     </div>
   </div>
@@ -25,7 +28,7 @@ import { useHistoryStore } from '@/stores/history'
 
 const editorStore = useEditorStore()
 const historyStore = useHistoryStore()
-const { componentData, curComponent, curComponentIndex } = storeToRefs(editorStore)
+const { componentData, curComponentIndex } = storeToRefs(editorStore)
 
 function getComponent(index: number) {
   return componentData.value[componentData.value.length - 1 - index]
@@ -36,9 +39,6 @@ function transformIndex(index: number) {
 }
 
 function onClick(index: number) {
-  if (!editorStore.rightList) {
-    editorStore.toggleRightList()
-  }
   setCurComponent(index)
 }
 

@@ -1,5 +1,10 @@
 <template>
-  <div class="shape" :class="{ active }" @click="selectCurComponent" @mousedown="handleMouseDownOnShape">
+  <div
+    class="shape"
+    :class="{ active }"
+    @click="selectCurComponent"
+    @mousedown="handleMouseDownOnShape"
+  >
     <div
       v-for="item in isActive() ? getPointList() : []"
       :key="item"
@@ -12,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
 import { useHistoryStore } from '@/stores/history'
@@ -34,12 +39,10 @@ const props = defineProps<Props>()
 const editorStore = useEditorStore()
 const historyStore = useHistoryStore()
 const contextMenuStore = useContextMenuStore()
-const { curComponent, editor } = storeToRefs(editorStore)
+const { editor } = storeToRefs(editorStore)
 
 const pointList = ['lt', 't', 'rt', 'r', 'rb', 'b', 'lb', 'l']
 const pointList2 = ['r', 'l']
-
-const shapeRef = ref<HTMLElement>()
 
 function getPointList(): string[] {
   return props.element.component === 'LineShape' ? pointList2 : pointList
@@ -74,8 +77,6 @@ function getPointStyle(point: string): Record<string, string> {
   }
 
   const style = {
-    marginLeft: '-4px',
-    marginTop: '-4px',
     left: `${newLeft}px`,
     top: `${newTop}px`,
     cursor: getCursor(point),
@@ -100,8 +101,6 @@ function getCursor(point: string): string {
 }
 
 function handleMouseDownOnShape(e: MouseEvent) {
-  nextTick(() => eventBus.emit('componentClick'))
-
   editorStore.setInEditorStatus(true)
   editorStore.setClickComponentStatus(true)
 
@@ -156,10 +155,6 @@ function selectCurComponent(e: MouseEvent) {
   e.stopPropagation()
   e.preventDefault()
   contextMenuStore.hideContextMenu()
-
-  if (!editorStore.rightList) {
-    editorStore.toggleRightList()
-  }
 }
 
 function handleMouseDownOnPoint(point: string, e: MouseEvent) {
@@ -169,7 +164,6 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
   e.preventDefault()
 
   const style = { ...props.defaultStyle }
-  const proportion = style.width / style.height
 
   const center = {
     x: style.left + style.width / 2,
@@ -192,7 +186,6 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
 
   let needSave = false
   let isFirst = true
-  const needLockProportion = false
 
   // 高频交互：缩放只在 mouseup 时记录一次 update 命令
   historyStore.beginUpdate(props.element.id, props.element, 'resize component')
@@ -209,7 +202,7 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
       y: moveEvent.clientY - Math.round(editorRectInfo.top),
     }
 
-    calculateComponentPositionAndSize(point, style, curPosition, proportion, needLockProportion, {
+    calculateComponentPositionAndSize(point, style, curPosition, {
       center,
       curPoint,
       symmetricPoint,
@@ -231,25 +224,6 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
   document.addEventListener('mousemove', move)
   document.addEventListener('mouseup', up)
 }
-
-onMounted(() => {
-  eventBus.on('runAnimation', () => {
-    if (props.element === curComponent.value && shapeRef.value) {
-      // runAnimation(shapeRef.value, curComponent.value.animations)
-    }
-  })
-
-  eventBus.on('stopAnimation', () => {
-    if (shapeRef.value) {
-      shapeRef.value.classList.remove('animated', 'infinite')
-    }
-  })
-})
-
-onBeforeUnmount(() => {
-  eventBus.off('runAnimation')
-  eventBus.off('stopAnimation')
-})
 </script>
 
 <style lang="scss" scoped>
@@ -272,6 +246,8 @@ onBeforeUnmount(() => {
   border: 1px solid #59c7f9;
   width: 8px;
   height: 8px;
+  margin-left: '-4px';
+  margin-top: '-4px';
   border-radius: 50%;
   z-index: 1;
 }

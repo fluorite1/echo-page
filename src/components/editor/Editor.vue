@@ -53,7 +53,7 @@ interface Props {
   isEdit?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   isEdit: true,
 })
 

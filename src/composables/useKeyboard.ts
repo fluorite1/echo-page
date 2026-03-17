@@ -64,17 +64,12 @@ export function useKeyboard() {
     historyStore.executeDeleteById(id, 'delete component')
   }
 
-  function clearCanvas() {
-    eventBus.emit('clearCanvas')
-  }
-
   const basemap: Record<number, () => void> = {
     [vKey]: paste,
     [yKey]: redo,
     [zKey]: undo,
     [sKey]: save,
     [pKey]: preview,
-    [eKey]: clearCanvas,
   }
 
   const unlockMap: Record<number, () => void> = {
@@ -132,6 +127,5 @@ export function useKeyboard() {
     save,
     preview,
     deleteComponent,
-    clearCanvas,
   }
 }

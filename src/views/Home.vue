@@ -32,8 +32,6 @@ import { useEditorStore } from '@/stores/editor'
 import { useHistoryStore } from '@/stores/history'
 import { deepCopy } from '@/utils/common'
 import generateID from '@/utils/generateID'
-import { changeComponentSizeWithScale } from '@/utils/changeComponentsSize'
-import { useKeyboard } from '@/composables/useKeyboard'
 import { LOCAL_STORAGE_KEYS } from '@/constants/storage'
 import componentList from '@/custom-component/component-list'
 import Editor from '@/components/editor/Editor.vue'
@@ -45,9 +43,6 @@ import CanvasAttr from '@/components/CanvasAttr.vue'
 const editorStore = useEditorStore()
 const historyStore = useHistoryStore()
 const { editor, curComponent } = storeToRefs(editorStore)
-
-// 初始化快捷键
-useKeyboard()
 
 onMounted(() => {
   restore()
@@ -92,7 +87,6 @@ function handleDrop(e: DragEvent) {
   component.style.left = e.clientX - rectInfo.x
   component.id = generateID()
 
-  changeComponentSizeWithScale(component, editorStore.canvasStyleData.scale)
   historyStore.executeAdd(component, undefined, 'drop component from palette')
 }
 

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Component, CanvasStyle, Animation } from '@/types'
+import type { Component, CanvasStyle } from '@/types'
 
 export const useEditorStore = defineStore('editor', () => {
   // 状态
@@ -10,7 +10,6 @@ export const useEditorStore = defineStore('editor', () => {
   const canvasStyleData = ref<CanvasStyle>({
     width: 1200,
     height: 740,
-    scale: 100,
     color: '#000',
     opacity: 1,
     background: '#fff',
@@ -19,13 +18,25 @@ export const useEditorStore = defineStore('editor', () => {
   const editMode = ref<'edit' | 'preview'>('edit')
   const isClickComponent = ref(false)
   const isInEditor = ref(false)
-  const rightList = ref(true)
   const editor = ref<HTMLElement | null>(null)
 
   // Getters
   const hasComponent = computed(() => componentData.value.length > 0)
 
   // Actions
+  function findIndexById(id: string): number {
+    return componentData.value.findIndex((c) => c.id === id)
+  }
+
+  function getComponentByIndex(index: number): Component | undefined {
+    return componentData.value[index]
+  }
+
+  function getComponentById(id: string): Component | undefined {
+    const index = findIndexById(id)
+    return getComponentByIndex(index)
+  }
+
   function setCurComponent(component: Component | null, index: number | null) {
     curComponent.value = component
     curComponentIndex.value = index
@@ -52,20 +63,6 @@ export const useEditorStore = defineStore('editor', () => {
 
   function setComponentData(data: Component[]) {
     componentData.value = data
-  }
-
-  function findIndexById(id: string): number {
-    return componentData.value.findIndex((c) => c.id === id)
-  }
-
-  function getComponentById(id: string): Component | null {
-    return componentData.value.find((c) => c.id === id) || null
-  }
-
-  function removeComponentById(id: string): void {
-    const index = findIndexById(id)
-    if (index < 0) return
-    deleteComponent(index)
   }
 
   /** 用完整快照替换某个组件（用于 update 命令 do/undo） */
@@ -97,9 +94,17 @@ export const useEditorStore = defineStore('editor', () => {
       return
     }
     // 选中项在移动区间内，索引随之偏移
-    if (from < clampedTo && curComponentIndex.value > from && curComponentIndex.value <= clampedTo) {
+    if (
+      from < clampedTo &&
+      curComponentIndex.value > from &&
+      curComponentIndex.value <= clampedTo
+    ) {
       curComponentIndex.value--
-    } else if (from > clampedTo && curComponentIndex.value >= clampedTo && curComponentIndex.value < from) {
+    } else if (
+      from > clampedTo &&
+      curComponentIndex.value >= clampedTo &&
+      curComponentIndex.value < from
+    ) {
       curComponentIndex.value++
     }
   }
@@ -109,7 +114,10 @@ export const useEditorStore = defineStore('editor', () => {
     Object.assign(curComponent.value.style, style)
   }
 
-  function setShapeSingleStyle<K extends keyof Component['style']>(key: K, value: Component['style'][K]) {
+  function setShapeSingleStyle<K extends keyof Component['style']>(
+    key: K,
+    value: Component['style'][K],
+  ) {
     if (!curComponent.value) return
     curComponent.value.style[key] = value
   }
@@ -130,41 +138,8 @@ export const useEditorStore = defineStore('editor', () => {
     isInEditor.value = status
   }
 
-  function toggleRightList() {
-    rightList.value = !rightList.value
-  }
-
   function getEditor() {
     editor.value = document.querySelector('#editor')
-  }
-
-  // 动画相关
-  function addAnimation(animation: Component['animations'][0]) {
-    if (!curComponent.value) return
-    curComponent.value.animations.push(animation)
-  }
-
-  function removeAnimation(index: number) {
-    if (!curComponent.value) return
-    curComponent.value.animations.splice(index, 1)
-  }
-
-  function alterAnimation(index: number, data: Partial<Animation>) {
-    if (!curComponent.value || typeof index !== 'number') return
-    const original = curComponent.value.animations[index]
-    if (!original) return
-    curComponent.value.animations[index] = { ...original, ...data }
-  }
-
-  // 事件相关
-  function addEvent(event: string, param: string) {
-    if (!curComponent.value) return
-    curComponent.value.events[event] = param
-  }
-
-  function removeEvent(event: string) {
-    if (!curComponent.value) return
-    delete curComponent.value.events[event]
   }
 
   // 图层相关
@@ -217,7 +192,6 @@ export const useEditorStore = defineStore('editor', () => {
     editMode,
     isClickComponent,
     isInEditor,
-    rightList,
     editor,
     // Getters
     hasComponent,
@@ -227,8 +201,8 @@ export const useEditorStore = defineStore('editor', () => {
     deleteComponent,
     setComponentData,
     findIndexById,
+    getComponentByIndex,
     getComponentById,
-    removeComponentById,
     replaceComponentById,
     moveComponent,
     setShapeStyle,
@@ -237,15 +211,7 @@ export const useEditorStore = defineStore('editor', () => {
     setEditMode,
     setClickComponentStatus,
     setInEditorStatus,
-    toggleRightList,
     getEditor,
-    // Animation
-    addAnimation,
-    removeAnimation,
-    alterAnimation,
-    // Event
-    addEvent,
-    removeEvent,
     // Layer
     upComponent,
     downComponent,

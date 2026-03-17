@@ -136,14 +136,6 @@ function selectText(element: HTMLElement) {
   selection?.removeAllRanges()
   selection?.addRange(range)
 }
-
-onMounted(() => {
-  eventBus.on('componentClick', onComponentClick)
-})
-
-onBeforeUnmount(() => {
-  eventBus.off('componentClick', onComponentClick)
-})
 </script>
 
 <style lang="scss" scoped>

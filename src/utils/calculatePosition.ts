@@ -9,9 +9,7 @@ interface PointInfo {
 type CalculateFunc = (
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ) => void
 
 const funcs: Record<string, CalculateFunc> = {
@@ -25,7 +23,13 @@ const funcs: Record<string, CalculateFunc> = {
   l: calculateLeft,
 }
 
-function applySize(style: ComponentStyle, left: number, top: number, width: number, height: number): void {
+function applySize(
+  style: ComponentStyle,
+  left: number,
+  top: number,
+  width: number,
+  height: number,
+): void {
   if (width > 0 && height > 0) {
     style.width = Math.round(width)
     style.height = Math.round(height)
@@ -34,32 +38,14 @@ function applySize(style: ComponentStyle, left: number, top: number, width: numb
   }
 }
 
-function lockRatio(width: number, height: number, proportion: number): { width: number; height: number } {
-  if (width / height > proportion) {
-    width = height * proportion
-  } else {
-    height = width / proportion
-  }
-
-  return { width, height }
-}
-
 function calculateLeftTop(
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ): void {
   const { symmetricPoint } = pointInfo
-  let width = symmetricPoint.x - curPosition.x
-  let height = symmetricPoint.y - curPosition.y
-
-  if (needLockProportion) {
-    const locked = lockRatio(width, height, proportion)
-    width = locked.width
-    height = locked.height
-  }
+  const width = symmetricPoint.x - curPosition.x
+  const height = symmetricPoint.y - curPosition.y
 
   applySize(style, symmetricPoint.x - width, symmetricPoint.y - height, width, height)
 }
@@ -67,19 +53,11 @@ function calculateLeftTop(
 function calculateRightTop(
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ): void {
   const { symmetricPoint } = pointInfo
-  let width = curPosition.x - symmetricPoint.x
-  let height = symmetricPoint.y - curPosition.y
-
-  if (needLockProportion) {
-    const locked = lockRatio(width, height, proportion)
-    width = locked.width
-    height = locked.height
-  }
+  const width = curPosition.x - symmetricPoint.x
+  const height = symmetricPoint.y - curPosition.y
 
   applySize(style, symmetricPoint.x, symmetricPoint.y - height, width, height)
 }
@@ -87,19 +65,11 @@ function calculateRightTop(
 function calculateRightBottom(
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ): void {
   const { symmetricPoint } = pointInfo
-  let width = curPosition.x - symmetricPoint.x
-  let height = curPosition.y - symmetricPoint.y
-
-  if (needLockProportion) {
-    const locked = lockRatio(width, height, proportion)
-    width = locked.width
-    height = locked.height
-  }
+  const width = curPosition.x - symmetricPoint.x
+  const height = curPosition.y - symmetricPoint.y
 
   applySize(style, symmetricPoint.x, symmetricPoint.y, width, height)
 }
@@ -107,19 +77,11 @@ function calculateRightBottom(
 function calculateLeftBottom(
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ): void {
   const { symmetricPoint } = pointInfo
-  let width = symmetricPoint.x - curPosition.x
-  let height = curPosition.y - symmetricPoint.y
-
-  if (needLockProportion) {
-    const locked = lockRatio(width, height, proportion)
-    width = locked.width
-    height = locked.height
-  }
+  const width = symmetricPoint.x - curPosition.x
+  const height = curPosition.y - symmetricPoint.y
 
   applySize(style, symmetricPoint.x - width, symmetricPoint.y, width, height)
 }
@@ -127,19 +89,12 @@ function calculateLeftBottom(
 function calculateTop(
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ): void {
   const { symmetricPoint } = pointInfo
-  let height = symmetricPoint.y - curPosition.y
-  let width = style.width
-  let left = style.left
-
-  if (needLockProportion) {
-    width = height * proportion
-    left = symmetricPoint.x - width / 2
-  }
+  const height = symmetricPoint.y - curPosition.y
+  const width = style.width
+  const left = style.left
 
   applySize(style, left, symmetricPoint.y - height, width, height)
 }
@@ -147,19 +102,12 @@ function calculateTop(
 function calculateRight(
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ): void {
   const { symmetricPoint } = pointInfo
-  let width = curPosition.x - symmetricPoint.x
-  let height = style.height
-  let top = style.top
-
-  if (needLockProportion) {
-    height = width / proportion
-    top = symmetricPoint.y - height / 2
-  }
+  const width = curPosition.x - symmetricPoint.x
+  const height = style.height
+  const top = style.top
 
   applySize(style, symmetricPoint.x, top, width, height)
 }
@@ -167,19 +115,12 @@ function calculateRight(
 function calculateBottom(
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ): void {
   const { symmetricPoint } = pointInfo
-  let height = curPosition.y - symmetricPoint.y
-  let width = style.width
-  let left = style.left
-
-  if (needLockProportion) {
-    width = height * proportion
-    left = symmetricPoint.x - width / 2
-  }
+  const height = curPosition.y - symmetricPoint.y
+  const width = style.width
+  const left = style.left
 
   applySize(style, left, symmetricPoint.y, width, height)
 }
@@ -187,19 +128,12 @@ function calculateBottom(
 function calculateLeft(
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ): void {
   const { symmetricPoint } = pointInfo
-  let width = symmetricPoint.x - curPosition.x
-  let height = style.height
-  let top = style.top
-
-  if (needLockProportion) {
-    height = width / proportion
-    top = symmetricPoint.y - height / 2
-  }
+  const width = symmetricPoint.x - curPosition.x
+  const height = style.height
+  const top = style.top
 
   applySize(style, symmetricPoint.x - width, top, width, height)
 }
@@ -208,12 +142,10 @@ export default function calculateComponentPositionAndSize(
   name: string,
   style: ComponentStyle,
   curPosition: { x: number; y: number },
-  proportion: number,
-  needLockProportion: boolean,
-  pointInfo: PointInfo
+  pointInfo: PointInfo,
 ): void {
   const func = funcs[name]
   if (func) {
-    func(style, curPosition, proportion, needLockProportion, pointInfo)
+    func(style, curPosition, pointInfo)
   }
 }
