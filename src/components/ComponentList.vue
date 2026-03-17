@@ -14,7 +14,6 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
 import componentList from '@/custom-component/component-list'
 
 function handleDragStart(e: DragEvent) {

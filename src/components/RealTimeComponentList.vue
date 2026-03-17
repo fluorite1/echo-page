@@ -57,7 +57,7 @@ function upComponent(index: number) {
       const from = index
       const to = Math.min(componentData.value.length - 1, from + 1)
       editorStore.setCurComponent(component, index)
-      historyStore.executeReorder(component.id, from, to, 'layer move up from list')
+      historyStore.executeReorder(from, to, 'layer move up from list')
     }
   })
 }
@@ -69,7 +69,7 @@ function downComponent(index: number) {
       const from = index
       const to = Math.max(0, from - 1)
       editorStore.setCurComponent(component, index)
-      historyStore.executeReorder(component.id, from, to, 'layer move down from list')
+      historyStore.executeReorder(from, to, 'layer move down from list')
     }
   })
 }
