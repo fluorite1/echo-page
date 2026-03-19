@@ -1,40 +1,29 @@
-<template>
+﻿<template>
   <div class="preview-bg">
     <el-button class="close" @click="emit('close')">关闭</el-button>
 
     <div class="canvas-container">
       <div class="canvas" :style="canvasStyle">
-        <div
+        <PreviewNode
           v-for="item in previewSnapshot"
           :key="item.id"
-          class="shape"
-          :style="getShapeStyle(item.style)"
-          @click="onTrigger('v-click', item.id)"
-          @mouseenter="onTrigger('v-hover', item.id)"
-        >
-          <component
-            :is="item.component"
-            :id="COMPONENT_DOM_ID_PREFIX + item.id"
-            class="component"
-            :style="getComponentStyle(item.style)"
-            :prop-value="item.propValue"
-            :element="item"
-          />
-        </div>
+          :item="item"
+          :runtime="runtime"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/stores/editor'
 import { deepCopy } from '@/utils/common'
-import { getCanvasStyle, getShapeStyle, getComponentStyle } from '@/utils/style'
+import { getCanvasStyle } from '@/utils/style'
 import { createPreviewRuntime } from '@/custom-component/previewRuntime'
-import { COMPONENT_DOM_ID_PREFIX } from '@/constants/dom'
-import type { Component, PreviewEventType } from '@/types'
+import type { Component } from '@/types'
+import PreviewNode from './PreviewNode.vue'
 
 defineOptions({
   name: 'EditorPreview',
@@ -48,19 +37,8 @@ const editorStore = useEditorStore()
 const { componentData, canvasStyleData } = storeToRefs(editorStore)
 
 /** 预览用组件快照，不直接改 store，便于预览期独立运行动画等 */
-const previewSnapshot = ref<Component[]>([])
-
-const runtime = ref<ReturnType<typeof createPreviewRuntime> | null>(null)
-
-onMounted(() => {
-  previewSnapshot.value = deepCopy(componentData.value)
-  runtime.value = createPreviewRuntime(previewSnapshot.value)
-})
-
-onBeforeUnmount(() => {
-  runtime.value?.dispose()
-  runtime.value = null
-})
+const previewSnapshot = ref<Component[]>(deepCopy(componentData.value))
+const runtime = createPreviewRuntime()
 
 const canvasStyle = computed(() => {
   return {
@@ -70,9 +48,9 @@ const canvasStyle = computed(() => {
   }
 })
 
-function onTrigger(eventType: PreviewEventType, sourceId: string) {
-  runtime.value?.emit(eventType, sourceId)
-}
+onBeforeUnmount(() => {
+  runtime.dispose()
+})
 </script>
 
 <style lang="scss" scoped>
@@ -102,17 +80,6 @@ function onTrigger(eventType: PreviewEventType, sourceId: string) {
     }
   }
 
-  .shape {
-    position: absolute;
-  }
-
-  .component {
-    outline: none;
-    width: 100%;
-    height: 100%;
-    user-select: none;
-  }
-
   .close {
     position: fixed;
     right: 20px;
@@ -121,4 +88,3 @@ function onTrigger(eventType: PreviewEventType, sourceId: string) {
   }
 }
 </style>
-

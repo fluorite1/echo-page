@@ -6,9 +6,11 @@ import type { Animation } from '@/types'
  *
  * @returns cleanup 函数（会移除 class/inline style，并清理定时器）
  */
-export function runAnimation(el: HTMLElement, animation: Animation, timers: number[] = []): () => void {
+export function runAnimation(el: HTMLElement, animation: Animation, onCleanup?: () => void): () => void {
   const name = animation.value
   if (!name) return () => {}
+  let timer: number | null = null
+  let cleaned = false
 
   // 先清理上一次的同名动画，避免不触发
   el.classList.remove('animated', name, 'infinite')
@@ -30,18 +32,24 @@ export function runAnimation(el: HTMLElement, animation: Animation, timers: numb
   el.classList.add('animated', name)
 
   const cleanup = () => {
+    if (cleaned) return
+    cleaned = true
+    if (timer !== null) {
+      window.clearTimeout(timer)
+      timer = null
+    }
     el.classList.remove('animated', name, 'infinite')
     el.style.animationDuration = ''
     el.style.animationDelay = ''
     el.style.animationIterationCount = ''
+    onCleanup?.()
   }
 
   // 非 infinite：结束后自动清理 class，避免一直保持在 animated 状态
   if (animation.iterationCount !== 'infinite') {
     const totalMs =
       ((animation.delay || 0) + (animation.duration || 0)) * 1000 * Math.max(1, Number(animation.iterationCount || 1))
-    const t = window.setTimeout(cleanup, Math.max(0, totalMs))
-    timers.push(t)
+    timer = window.setTimeout(cleanup, Math.max(0, totalMs))
   }
 
   return cleanup

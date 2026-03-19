@@ -6,7 +6,7 @@
 import { onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useEditorStore } from '@/stores/editor'
-import Preview from '@/components/editor/Preview.vue'
+import Preview from '@/components/preview/Preview.vue'
 
 const router = useRouter()
 const editorStore = useEditorStore()

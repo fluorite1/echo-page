@@ -1,63 +1,65 @@
-import mitt from 'mitt'
 import { runAnimation } from '@/utils/runAnimation'
-import { COMPONENT_DOM_ID_PREFIX } from '@/constants/dom'
-import type { Component, PreviewEventType, SubscriptionRule } from '@/types'
+import type { Component, PreviewEventType, AnimationAction } from '@/types'
 
 type TriggerKey = string
+type ActionHandler = () => void
+
+export interface ActionContext {
+  sourceId: string
+  targetId: string
+  targetEl: HTMLElement | null
+}
 
 export interface PreviewRuntime {
-  /** 触发源组件调用：告诉执行器“我触发了某事件” */
+  on(eventType: PreviewEventType, sourceId: string, handler: ActionHandler): () => void
   emit(eventType: PreviewEventType, sourceId: string): void
-  /** 释放预览期资源（解绑事件、清定时器、清动画 class 等） */
+  executeAction(action: AnimationAction, ctx: ActionContext): void
+  runSelfActions(source: Component, eventType: PreviewEventType, targetEl: HTMLElement | null): void
+  clearTarget(targetId: string): void
+  /** 释放预览期资源（清动画 class / 事件订阅） */
   dispose(): void
 }
 
 /**
  * 预览期事件运行时：
- * - 从 schema（组件数组）编译出 triggerKey -> actions 的路由表
- * - 监听 v-click / v-hover 触发并执行动画动作
- * - dispose 时清理资源
+ * - 作为轻量事件中心，供 PreviewNode 在挂载时注册订阅
+ * - 动作统一走 executeAction，避免执行逻辑散落在节点里
+ * - 按目标组件覆盖管理 cleanup，避免长期预览时资源无界累积
  */
-export function createPreviewRuntime(schema: Component[]): PreviewRuntime {
-  const bus = mitt<Record<TriggerKey, void>>()
-  const registrations: Array<{ key: TriggerKey; handler: () => void }> = []
-  const cleanupFns: Array<() => void> = []
-  const timers: number[] = []
+export function createPreviewRuntime(): PreviewRuntime {
+  const actionMap = new Map<TriggerKey, Set<ActionHandler>>()
+  const activeCleanups = new Map<string, () => void>()
 
   function makeKey(sourceId: string, eventType: PreviewEventType): TriggerKey {
     return `${sourceId}::${eventType}`
   }
 
-  function registerSubscriptions() {
-    schema.forEach((target) => {
-      const subs = (target.subscriptions || []) as SubscriptionRule[]
-      subs.forEach((sub) => {
-        if (!sub?.id || !sub.sourceId || !sub.eventType) return
+  function replaceCleanup(targetId: string, cleanup?: () => void) {
+    const prev = activeCleanups.get(targetId)
+    if (prev) {
+      activeCleanups.delete(targetId)
+      prev()
+    }
 
-        const action = sub.actions?.find((a) => a.type === 'animation')
-        if (!action) return
-
-        const key = makeKey(sub.sourceId, sub.eventType)
-        const handler = () => {
-          const el = document.getElementById(COMPONENT_DOM_ID_PREFIX + target.id) as HTMLElement | null
-          if (!el) return
-          const cleanup = runAnimation(el, action.animation, timers)
-          cleanupFns.push(cleanup)
-        }
-
-        bus.on(key, handler)
-        registrations.push({ key, handler })
-      })
-    })
+    if (cleanup) {
+      activeCleanups.set(targetId, cleanup)
+    }
   }
 
-  function dispose() {
-    registrations.forEach(({ key, handler }) => bus.off(key, handler))
-    registrations.length = 0
-    cleanupFns.forEach((fn) => fn())
-    cleanupFns.length = 0
-    timers.forEach((t) => clearTimeout(t))
-    timers.length = 0
+  function on(eventType: PreviewEventType, sourceId: string, handler: ActionHandler): () => void {
+    const key = makeKey(sourceId, eventType)
+    const list = actionMap.get(key) ?? new Set<ActionHandler>()
+    list.add(handler)
+    actionMap.set(key, list)
+
+    return () => {
+      const current = actionMap.get(key)
+      if (!current) return
+      current.delete(handler)
+      if (current.size === 0) {
+        actionMap.delete(key)
+      }
+    }
   }
 
   function normalizeUrl(url: string): string {
@@ -66,21 +68,32 @@ export function createPreviewRuntime(schema: Component[]): PreviewRuntime {
     return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
   }
 
-  function runSelfActions(eventType: PreviewEventType, sourceId: string) {
-    const source = schema.find((c) => c.id === sourceId)
-    if (!source) return
+  function executeAction(action: AnimationAction, ctx: ActionContext) {
+    if (action.type !== 'animation') return
+    if (!ctx.targetEl) return
 
-    // 1) 自身触发动画（简化版）
+    // 先停止旧动画，再启动新动画；否则旧 cleanup 会把刚启动的新动画一起清掉。
+    replaceCleanup(ctx.targetId)
+
+    let cleanupRef: (() => void) | undefined
+    const cleanup = runAnimation(ctx.targetEl, action.animation, () => {
+      if (cleanupRef && activeCleanups.get(ctx.targetId) === cleanupRef) {
+        activeCleanups.delete(ctx.targetId)
+      }
+    })
+    cleanupRef = cleanup
+    activeCleanups.set(ctx.targetId, cleanup)
+  }
+
+  function runSelfActions(source: Component, eventType: PreviewEventType, targetEl: HTMLElement | null) {
     const anim = source.triggerAnimations?.[eventType]
     if (anim) {
-      const el = document.getElementById(COMPONENT_DOM_ID_PREFIX + sourceId) as HTMLElement | null
-      if (el) {
-        const cleanup = runAnimation(el, anim, timers)
-        cleanupFns.push(cleanup)
-      }
+      executeAction(
+        { type: 'animation', animation: anim },
+        { sourceId: source.id, targetId: source.id, targetEl },
+      )
     }
 
-    // 2) 点击事件（alert / redirect）
     if (eventType === 'v-click' && source.events) {
       const alertText = source.events.alert
       if (alertText) {
@@ -95,13 +108,29 @@ export function createPreviewRuntime(schema: Component[]): PreviewRuntime {
   }
 
   function emit(eventType: PreviewEventType, sourceId: string) {
-    runSelfActions(eventType, sourceId)
     const key = makeKey(sourceId, eventType)
-    bus.emit(key)
+    const handlers = actionMap.get(key)
+    if (!handlers?.size) return
+
+    ;[...handlers].forEach((handler) => handler())
   }
 
-  registerSubscriptions()
+  function clearTarget(targetId: string) {
+    replaceCleanup(targetId)
+  }
 
-  return { emit, dispose }
+  function dispose() {
+    actionMap.clear()
+    activeCleanups.forEach((cleanup) => cleanup())
+    activeCleanups.clear()
+  }
+
+  return {
+    on,
+    emit,
+    executeAction,
+    runSelfActions,
+    clearTarget,
+    dispose,
+  }
 }
-
