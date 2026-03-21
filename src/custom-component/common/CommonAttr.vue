@@ -1,20 +1,19 @@
 <template>
   <div class="v-common-attr">
-    <el-collapse v-model="activeName" accordion @change="onChange">
+    <el-collapse v-model="activeName" accordion>
       <el-collapse-item title="通用样式" name="style">
         <el-form label-width="80px" size="small">
           <el-form-item v-for="({ key, label }, index) in styleKeys" :key="index" :label="label">
             <el-color-picker
               v-if="isIncludesColor(key)"
-              :model-value="String(curComponent!.style[key as keyof ComponentStyle] ?? '')"
+              :model-value="String(props.component.style[key as keyof ComponentStyle] ?? '')"
               show-alpha
-              @update:model-value="(v) => ((curComponent!.style as any)[key] = v || '')"
-              @change="handleStyleChange"
+              @change="(v) => handleStyleChange(key as keyof ComponentStyle, (v || '') as ComponentStyle[keyof ComponentStyle])"
             />
             <el-select
               v-else-if="selectKey.includes(key)"
-              v-model="curComponent!.style[key as keyof ComponentStyle]"
-              @change="handleStyleChange"
+              :model-value="props.component.style[key as keyof ComponentStyle]"
+              @change="(v) => handleStyleChange(key as keyof ComponentStyle, v as ComponentStyle[keyof ComponentStyle])"
             >
               <el-option
                 v-for="item in optionMap[key]"
@@ -25,74 +24,93 @@
             </el-select>
             <el-input
               v-else
-              v-model.number="curComponent!.style[key as keyof ComponentStyle]"
+              :model-value="styleDraft[key]"
               type="number"
-              @change="handleStyleChange"
+              @update:model-value="(v) => updateStyleDraft(key, v)"
+              @change="(v) => handleStyleChange(key as keyof ComponentStyle, normalizeNumberInput(v) as ComponentStyle[keyof ComponentStyle])"
             />
           </el-form-item>
         </el-form>
       </el-collapse-item>
 
-      <InteractionAttr />
-      <SubscriptionsAttr />
+      <InteractionAttr :component="props.component" @change="emit('change', $event)" />
+      <SubscriptionsAttr
+        :component="props.component"
+        :component-data="props.componentData"
+        @change="emit('change', $event)"
+      />
     </el-collapse>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useEditorStore } from '@/stores/editor'
-import { useHistoryStore } from '@/stores/history'
+import { deepCopy, isJSONEqual } from '@/utils/common'
 import { styleData, selectKey, optionMap } from '@/utils/attr'
-import type { Component, ComponentStyle } from '@/types'
-import { deepCopy } from '@/utils/common'
+import type { Component, ComponentAttrChange, ComponentStyle } from '@/types'
 import InteractionAttr from '@/custom-component/common/InteractionAttr.vue'
 import SubscriptionsAttr from '@/custom-component/common/SubscriptionsAttr.vue'
 
-const editorStore = useEditorStore()
-const historyStore = useHistoryStore()
-const { curComponent } = storeToRefs(editorStore)
+const props = defineProps<{
+  component: Component
+  componentData: Component[]
+}>()
+
+const emit = defineEmits<{
+  change: [payload: ComponentAttrChange]
+}>()
 
 const activeName = ref('')
-const lastComponentSnapshot = ref<Component | null>(null)
+const styleDraft = ref<Record<string, string | number | undefined>>({})
 
 const styleKeys = computed(() => {
-  if (curComponent.value) {
-    const curComponentStyleKeys = Object.keys(curComponent.value.style)
-    return styleData.filter((item) => curComponentStyleKeys.includes(item.key))
-  }
-  return []
+  const currentStyleKeys = Object.keys(props.component.style)
+  return styleData.filter((item) => currentStyleKeys.includes(item.key))
 })
 
 watch(
-  curComponent,
+  () => props.component,
   () => {
-    if (curComponent.value) {
-      activeName.value = curComponent.value.collapseName || 'style'
-      lastComponentSnapshot.value = deepCopy(curComponent.value)
-    }
+    activeName.value = 'style'
+    styleDraft.value = deepCopy(props.component.style) as unknown as Record<
+      string,
+      string | number | undefined
+    >
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 )
 
-function onChange() {
-  if (curComponent.value) {
-    curComponent.value.collapseName = activeName.value
-  }
-}
+function handleStyleChange<K extends keyof ComponentStyle>(key: K, value: ComponentStyle[K]) {
+  const nextStyle = {
+    ...props.component.style,
+    ...styleDraft.value,
+    [key]: value,
+  } as ComponentStyle
 
-function handleStyleChange() {
-  const c = curComponent.value
-  if (!c) return
-  const before = lastComponentSnapshot.value ? deepCopy(lastComponentSnapshot.value) : deepCopy(c)
-  const after = deepCopy(c)
-  historyStore.executeUpdate(c.id, before, after, 'update common style')
-  lastComponentSnapshot.value = after
+  if (isJSONEqual(nextStyle, props.component.style)) return
+
+  styleDraft.value = deepCopy(nextStyle) as unknown as Record<string, string | number | undefined>
+
+  emit('change', {
+    patch: {
+      style: nextStyle,
+    },
+    label: 'update common style',
+  })
 }
 
 function isIncludesColor(str: string): boolean {
   return str.toLowerCase().includes('color') || str === 'backgroundColor'
+}
+
+function updateStyleDraft(key: string, value: string | number) {
+  styleDraft.value[key] = normalizeNumberInput(value)
+}
+
+function normalizeNumberInput(value: string | number): string | number {
+  if (value === '') return ''
+  const next = Number(value)
+  return Number.isNaN(next) ? value : next
 }
 </script>
 

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Component, CanvasStyle } from '@/types'
+import type { Component, CanvasStyle, ComponentAttrKey, ComponentAttrPatch } from '@/types'
 
 export const useEditorStore = defineStore('editor', () => {
   // 状态
@@ -65,15 +65,17 @@ export const useEditorStore = defineStore('editor', () => {
     componentData.value = data
   }
 
-  /** 用完整快照替换某个组件（用于 update 命令 do/undo） */
-  function replaceComponentById(id: string, next: Component): void {
+  function updateComponentPropsById(id: string, patch: ComponentAttrPatch): void {
     const index = findIndexById(id)
     if (index < 0) return
-    componentData.value[index] = next
-    if (curComponent.value?.id === id) {
-      curComponent.value = next
-      curComponentIndex.value = index
-    }
+
+    const component = componentData.value[index]
+    if (!component) return
+
+    const patchRecord = patch as Record<string, unknown>
+    const componentRecord = component as unknown as Record<string, unknown>
+    const key = Object.keys(patch)[0] as ComponentAttrKey
+    componentRecord[key] = patchRecord[key as string]
   }
 
   /** 将组件从 from 移动到 to（图层排序的基础操作） */
@@ -111,15 +113,10 @@ export const useEditorStore = defineStore('editor', () => {
 
   function setShapeStyle(style: Partial<Component['style']>) {
     if (!curComponent.value) return
-    Object.assign(curComponent.value.style, style)
-  }
-
-  function setShapeSingleStyle<K extends keyof Component['style']>(
-    key: K,
-    value: Component['style'][K],
-  ) {
-    if (!curComponent.value) return
-    curComponent.value.style[key] = value
+    curComponent.value.style = {
+      ...curComponent.value.style,
+      ...style,
+    }
   }
 
   function setCanvasStyle(style: CanvasStyle) {
@@ -203,10 +200,9 @@ export const useEditorStore = defineStore('editor', () => {
     findIndexById,
     getComponentByIndex,
     getComponentById,
-    replaceComponentById,
+    updateComponentPropsById,
     moveComponent,
     setShapeStyle,
-    setShapeSingleStyle,
     setCanvasStyle,
     setEditMode,
     setClickComponentStatus,

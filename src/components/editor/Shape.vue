@@ -24,6 +24,7 @@ import { useHistoryStore } from '@/stores/history'
 import { useContextMenuStore } from '@/stores/contextmenu'
 import { eventBus } from '@/utils/eventBus'
 import calculateComponentPositionAndSize from '@/utils/calculatePosition'
+import { deepCopy } from '@/utils/common'
 import { isPreventDrop } from '@/utils/common'
 import type { Component, ComponentStyle } from '@/types'
 
@@ -111,8 +112,7 @@ function handleMouseDownOnShape(e: MouseEvent) {
   e.stopPropagation()
   editorStore.setCurComponent(props.element, props.index)
 
-  // 高频交互：移动只在 mouseup 时记录一次 update 命令
-  historyStore.beginUpdate(props.element.id, props.element, 'move component')
+  const beforeStyle = deepCopy(props.element.style)
 
   const pos = { ...props.defaultStyle }
   const startY = e.clientY
@@ -138,9 +138,12 @@ function handleMouseDownOnShape(e: MouseEvent) {
 
   const up = () => {
     if (hasMove) {
-      historyStore.commitUpdate(props.element)
-    } else {
-      historyStore.cancelPendingUpdate()
+      historyStore.executePatchUpdate(
+        props.element.id,
+        { style: props.element.style },
+        'move component',
+        { style: beforeStyle },
+      )
     }
     eventBus.emit('unmove')
     document.removeEventListener('mousemove', move)
@@ -187,8 +190,7 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
   let needSave = false
   let isFirst = true
 
-  // 高频交互：缩放只在 mouseup 时记录一次 update 命令
-  historyStore.beginUpdate(props.element.id, props.element, 'resize component')
+  const beforeStyle = deepCopy(props.element.style)
 
   const move = (moveEvent: MouseEvent) => {
     if (isFirst) {
@@ -215,9 +217,12 @@ function handleMouseDownOnPoint(point: string, e: MouseEvent) {
     document.removeEventListener('mousemove', move)
     document.removeEventListener('mouseup', up)
     if (needSave) {
-      historyStore.commitUpdate(props.element)
-    } else {
-      historyStore.cancelPendingUpdate()
+      historyStore.executePatchUpdate(
+        props.element.id,
+        { style: props.element.style },
+        'resize component',
+        { style: beforeStyle },
+      )
     }
   }
 

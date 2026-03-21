@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     CanvasAttr: typeof import('./components/CanvasAttr.vue')['default']
+    ComponentAttrPanel: typeof import('./components/ComponentAttrPanel.vue')['default']
     ComponentList: typeof import('./components/ComponentList.vue')['default']
     ContextMenu: typeof import('./components/editor/ContextMenu.vue')['default']
     Editor: typeof import('./components/editor/Editor.vue')['default']

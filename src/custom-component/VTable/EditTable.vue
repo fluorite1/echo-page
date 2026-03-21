@@ -11,7 +11,7 @@
           >
             <el-input
               v-if="canEdit && curTd === row + ',' + col"
-              v-model="tableData[row][col]"
+              v-model="editValue"
               v-focus
               @blur="onBlur"
             />
@@ -30,13 +30,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useEditorStore } from '@/stores/editor'
-import { useHistoryStore } from '@/stores/history'
+import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { deepCopy } from '@/utils/common'
-import type { Component } from '@/types'
+import { deepCopy, isJSONEqual } from '@/utils/common'
+import type { Component, ComponentAttrChange } from '@/types'
 
 const vFocus = {
   mounted(el: HTMLElement) {
@@ -47,39 +44,18 @@ const vFocus = {
   },
 }
 
-const editorStore = useEditorStore()
-const historyStore = useHistoryStore()
-const { curComponent } = storeToRefs(editorStore)
+const props = defineProps<{
+  component: Component
+}>()
+
+const emit = defineEmits<{
+  change: [payload: ComponentAttrChange]
+}>()
 
 const curTd = ref('')
 const canEdit = ref(false)
 const preCurTd = ref('')
-
-const lastSnapshot = ref<Component | null>(null)
-const editBefore = ref<Component | null>(null)
-
-watch(
-  curComponent,
-  () => {
-    lastSnapshot.value = curComponent.value ? deepCopy(curComponent.value) : null
-    editBefore.value = null
-  },
-  { immediate: true }
-)
-
-function snapshotComponent(): Component | null {
-  return curComponent.value ? deepCopy(curComponent.value) : null
-}
-
-function record(label: string, beforeOverride?: Component | null) {
-  const c = curComponent.value
-  if (!c) return
-  const before = beforeOverride ?? lastSnapshot.value ?? snapshotComponent()
-  const after = snapshotComponent()
-  if (!before || !after) return
-  historyStore.executeUpdate(c.id, before, after, label)
-  lastSnapshot.value = after
-}
+const editValue = ref('')
 
 function parseTd(td: string): { row: number; col: number } | null {
   const [r, c] = td.split(',')
@@ -90,15 +66,17 @@ function parseTd(td: string): { row: number; col: number } | null {
 }
 
 const tableData = computed(() => {
-  if (curComponent.value && curComponent.value.propValue) {
-    return (curComponent.value.propValue as any).data
+  if (props.component.propValue) {
+    return (props.component.propValue as any).data
   }
   return []
 })
 
 function onDblclick() {
+  const td = parseTd(curTd.value)
+  if (!td) return
   canEdit.value = true
-  editBefore.value = snapshotComponent()
+  editValue.value = tableData.value[td.row]?.[td.col] ?? ''
 }
 
 function onClick(row: number, col: number) {
@@ -107,12 +85,15 @@ function onClick(row: number, col: number) {
 }
 
 function onBlur() {
+  const td = parseTd(preCurTd.value)
   canEdit.value = false
   curTd.value = ''
+  if (!td) return
 
-  // 单元格编辑结束，记录一次 update
-  record('table cell edit', editBefore.value)
-  editBefore.value = null
+  const next = createNextTableValue()
+  next.data[td.row] ||= []
+  next.data[td.row][td.col] = editValue.value
+  emitTableChange(next, 'table cell edit')
 }
 
 function deleteRow() {
@@ -122,22 +103,25 @@ function deleteRow() {
     return
   }
 
-  tableData.value.splice(td.row, 1)
-  record('table delete row')
+  const next = createNextTableValue()
+  next.data.splice(td.row, 1)
+  emitTableChange(next, 'table delete row')
 }
 
 function addRow() {
-  tableData.value.push(new Array(tableData.value[0]?.length || 1).fill(' '))
-  record('table add row')
+  const next = createNextTableValue()
+  next.data.push(new Array(next.data[0]?.length || 1).fill(' '))
+  emitTableChange(next, 'table add row')
 }
 
 function addCol() {
-  if (tableData.value.length) {
-    tableData.value.forEach((item: string[]) => item.push(' '))
+  const next = createNextTableValue()
+  if (next.data.length) {
+    next.data.forEach((item: string[]) => item.push(' '))
   } else {
-    tableData.value.push([' '])
+    next.data.push([' '])
   }
-  record('table add col')
+  emitTableChange(next, 'table add col')
 }
 
 function deleteCol() {
@@ -147,10 +131,28 @@ function deleteCol() {
     return
   }
 
-  tableData.value.forEach((item: string[]) => {
+  const next = createNextTableValue()
+  next.data.forEach((item: string[]) => {
     item.splice(td.col, 1)
   })
-  record('table delete col')
+  emitTableChange(next, 'table delete col')
+}
+
+function createNextTableValue() {
+  const value = deepCopy(props.component.propValue ?? {})
+  value.data = Array.isArray(value.data) ? value.data : []
+  value.stripe = Boolean(value.stripe)
+  value.thBold = Boolean(value.thBold)
+  return value
+}
+
+function emitTableChange(nextValue: Record<string, unknown>, label: string) {
+  if (isJSONEqual(nextValue, createNextTableValue())) return
+
+  emit('change', {
+    patch: { propValue: nextValue },
+    label,
+  })
 }
 </script>
 

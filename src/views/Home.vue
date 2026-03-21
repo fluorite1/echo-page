@@ -18,8 +18,7 @@
       <!-- 右侧属性面板 -->
       <section class="right">
         <CanvasAttr v-if="!curComponent" />
-        <!-- 约定：组件名 + 'Attr' 为对应属性面板，如 VText -> VTextAttr -->
-        <component v-else :is="curComponent.component + 'Attr'" />
+        <ComponentAttrPanel v-else :component="curComponent" />
       </section>
     </main>
   </div>
@@ -39,6 +38,7 @@ import Toolbar from '@/components/Toolbar.vue'
 import ComponentList from '@/components/ComponentList.vue'
 import RealTimeComponentList from '@/components/RealTimeComponentList.vue'
 import CanvasAttr from '@/components/CanvasAttr.vue'
+import ComponentAttrPanel from '@/components/ComponentAttrPanel.vue'
 
 const editorStore = useEditorStore()
 const historyStore = useHistoryStore()

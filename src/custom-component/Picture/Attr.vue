@@ -1,14 +1,28 @@
 <template>
   <div class="attr-list">
-    <CommonAttr />
+    <CommonAttr :component="props.component" :component-data="props.componentData" @change="emit('change', $event)" />
     <el-form label-width="80px" size="small" style="padding: 10px">
       <el-form-item label="图片URL">
-        <el-input v-model="curComponent!.propValue.url" placeholder="请输入图片URL" @change="record('update picture url')" />
+        <el-input
+          v-model="urlDraft"
+          placeholder="请输入图片URL"
+          @change="(value) => updatePicture({ url: value }, 'update picture url')"
+        />
       </el-form-item>
       <el-form-item label="镜像翻转">
         <div>
-          <el-checkbox v-model="curComponent!.propValue.flip.horizontal" @change="record('flip horizontal')">水平翻转</el-checkbox>
-          <el-checkbox v-model="curComponent!.propValue.flip.vertical" @change="record('flip vertical')">垂直翻转</el-checkbox>
+          <el-checkbox
+            :model-value="pictureValue.flip.horizontal"
+            @change="(value) => updatePicture({ flip: { ...pictureValue.flip, horizontal: Boolean(value) } }, 'flip horizontal')"
+          >
+            水平翻转
+          </el-checkbox>
+          <el-checkbox
+            :model-value="pictureValue.flip.vertical"
+            @change="(value) => updatePicture({ flip: { ...pictureValue.flip, vertical: Boolean(value) } }, 'flip vertical')"
+          >
+            垂直翻转
+          </el-checkbox>
         </div>
       </el-form-item>
     </el-form>
@@ -16,33 +30,54 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useEditorStore } from '@/stores/editor'
-import { useHistoryStore } from '@/stores/history'
+import { computed, ref, watch } from 'vue'
 import CommonAttr from '@/custom-component/common/CommonAttr.vue'
-import { deepCopy } from '@/utils/common'
-import type { Component } from '@/types'
+import { isJSONEqual } from '@/utils/common'
+import type { Component, ComponentAttrChange } from '@/types'
 
-const editorStore = useEditorStore()
-const historyStore = useHistoryStore()
-const { curComponent } = storeToRefs(editorStore)
+const props = defineProps<{
+  component: Component
+  componentData: Component[]
+}>()
 
-const lastSnapshot = ref<Component | null>(null)
+const emit = defineEmits<{
+  change: [payload: ComponentAttrChange]
+}>()
+
+const urlDraft = ref('')
+
+const pictureValue = computed(() => {
+  const value = props.component.propValue ?? {}
+  return {
+    url: value.url ?? '',
+    flip: {
+      horizontal: Boolean(value.flip?.horizontal),
+      vertical: Boolean(value.flip?.vertical),
+    },
+  }
+})
+
 watch(
-  curComponent,
-  () => {
-    lastSnapshot.value = curComponent.value ? deepCopy(curComponent.value) : null
+  pictureValue,
+  (value) => {
+    urlDraft.value = value.url
   },
-  { immediate: true }
+  { immediate: true, deep: true },
 )
 
-function record(label: string) {
-  const c = curComponent.value
-  if (!c) return
-  const before = lastSnapshot.value ?? deepCopy(c)
-  const after = deepCopy(c)
-  historyStore.executeUpdate(c.id, before, after, label)
-  lastSnapshot.value = after
+function updatePicture(nextPartial: Record<string, unknown>, label: string) {
+  const nextValue = {
+    ...pictureValue.value,
+    ...nextPartial,
+  }
+
+  if (isJSONEqual(nextValue, pictureValue.value)) return
+
+  emit('change', {
+    patch: {
+      propValue: nextValue,
+    },
+    label,
+  })
 }
 </script>

@@ -8,7 +8,6 @@ export const commonAttr = {
   animations: [],
   events: {},
   groupStyle: {},
-  collapseName: 'style',
   triggerAnimations: {},
   subscriptions: [],
 }

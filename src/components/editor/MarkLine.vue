@@ -151,7 +151,7 @@ function showLine(isDownward: boolean, isRightward: boolean) {
       conditions[key].forEach((condition) => {
         if (!condition.isNearly) return
 
-        editorStore.setShapeSingleStyle(key, condition.dragShift)
+        editorStore.setShapeStyle({ [key]: condition.dragShift })
 
         if (condition.lineNode) {
           condition.lineNode.style[key as any] = `${condition.lineShift}px`
@@ -218,6 +218,7 @@ onBeforeUnmount(() => {
 <style lang="scss" scoped>
 .mark-line {
   height: 100%;
+  pointer-events: none;
 }
 
 .line {

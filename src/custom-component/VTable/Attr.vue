@@ -1,47 +1,56 @@
 <template>
   <div class="attr-list v-table-attr">
-    <CommonAttr />
-    <EditTable />
+    <CommonAttr :component="props.component" :component-data="props.componentData" @change="emit('change', $event)" />
+    <EditTable :component="props.component" @change="emit('change', $event)" />
     <el-form label-width="80px" size="small" style="padding: 10px">
       <el-form-item label="斑马纹">
-        <el-switch v-model="curComponent!.propValue.stripe" @change="record('table stripe')" />
+        <el-switch :model-value="tableValue.stripe" @change="(value) => updateTable({ stripe: Boolean(value) }, 'table stripe')" />
       </el-form-item>
       <el-form-item label="表头加粗">
-        <el-switch v-model="curComponent!.propValue.thBold" @change="record('table thBold')" />
+        <el-switch :model-value="tableValue.thBold" @change="(value) => updateTable({ thBold: Boolean(value) }, 'table thBold')" />
       </el-form-item>
     </el-form>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useEditorStore } from '@/stores/editor'
-import { useHistoryStore } from '@/stores/history'
+import { computed } from 'vue'
 import CommonAttr from '@/custom-component/common/CommonAttr.vue'
 import EditTable from './EditTable.vue'
-import { deepCopy } from '@/utils/common'
-import type { Component } from '@/types'
+import { isJSONEqual } from '@/utils/common'
+import type { Component, ComponentAttrChange } from '@/types'
 
-const editorStore = useEditorStore()
-const historyStore = useHistoryStore()
-const { curComponent } = storeToRefs(editorStore)
+const props = defineProps<{
+  component: Component
+  componentData: Component[]
+}>()
 
-const lastSnapshot = ref<Component | null>(null)
-watch(
-  curComponent,
-  () => {
-    lastSnapshot.value = curComponent.value ? deepCopy(curComponent.value) : null
-  },
-  { immediate: true }
-)
+const emit = defineEmits<{
+  change: [payload: ComponentAttrChange]
+}>()
 
-function record(label: string) {
-  const c = curComponent.value
-  if (!c) return
-  const before = lastSnapshot.value ?? deepCopy(c)
-  const after = deepCopy(c)
-  historyStore.executeUpdate(c.id, before, after, label)
-  lastSnapshot.value = after
+const tableValue = computed(() => {
+  const value = props.component.propValue ?? {}
+  return {
+    data: Array.isArray(value.data) ? value.data : [],
+    stripe: Boolean(value.stripe),
+    thBold: Boolean(value.thBold),
+  }
+})
+
+function updateTable(nextPartial: Record<string, unknown>, label: string) {
+  const nextValue = {
+    ...tableValue.value,
+    ...nextPartial,
+  }
+
+  if (isJSONEqual(nextValue, tableValue.value)) return
+
+  emit('change', {
+    patch: {
+      propValue: nextValue,
+    },
+    label,
+  })
 }
 </script>

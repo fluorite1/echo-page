@@ -3,7 +3,11 @@
     <div class="subscriptions">
       <div v-for="(rule, idx) in subscriptions" :key="rule.id" class="rule">
         <div class="row">
-          <el-select v-model="rule.sourceId" placeholder="监听组件" @change="record">
+          <el-select
+            :model-value="rule.sourceId"
+            placeholder="监听组件"
+            @change="(value) => updateRule(rule.id, (target) => { target.sourceId = String(value ?? '') })"
+          >
             <el-option
               v-for="c in sourceOptions"
               :key="c.id"
@@ -12,7 +16,12 @@
             />
           </el-select>
 
-          <el-select v-model="rule.eventType" placeholder="事件类型" style="width: 120px" @change="record">
+          <el-select
+            :model-value="rule.eventType"
+            placeholder="事件类型"
+            style="width: 120px"
+            @change="(value) => updateRule(rule.id, (target) => { target.eventType = value as any })"
+          >
             <el-option label="点击" value="v-click" />
             <el-option label="悬浮" value="v-hover" />
           </el-select>
@@ -21,33 +30,52 @@
         </div>
 
         <div class="row">
-          <el-select v-model="rule.actions[0].animation.value" placeholder="动画" @change="syncLabel(rule)">
+          <el-select
+            :model-value="rule.actions[0].animation.value"
+            placeholder="动画"
+            @change="(value) => syncLabel(rule.id, String(value ?? ''))"
+          >
             <el-option v-for="a in animationOptions" :key="a.value" :label="a.label" :value="a.value" />
           </el-select>
 
-          <el-input-number v-model="rule.actions[0].animation.duration" :min="0" :step="0.1" @change="record" />
+          <el-input-number
+            :model-value="rule.actions[0].animation.duration"
+            :min="0"
+            :step="0.1"
+            @change="(value) => updateRule(rule.id, (target) => { target.actions[0].animation.duration = value ?? 0 })"
+          />
           <span class="unit">秒</span>
 
-          <el-input-number v-model="rule.actions[0].animation.delay" :min="0" :step="0.1" @change="record" />
+          <el-input-number
+            :model-value="rule.actions[0].animation.delay"
+            :min="0"
+            :step="0.1"
+            @change="(value) => updateRule(rule.id, (target) => { target.actions[0].animation.delay = value ?? 0 })"
+          />
           <span class="unit">延迟</span>
 
           <el-input-number
             v-if="rule.actions[0].animation.iterationCount !== 'infinite'"
-            v-model="rule.actions[0].animation.iterationCount"
+            :model-value="rule.actions[0].animation.iterationCount"
             :min="1"
             :step="1"
-            @change="record"
+            @change="(value) => updateRule(rule.id, (target) => { target.actions[0].animation.iterationCount = value ?? 1 })"
           />
           <el-select
             v-else
-            v-model="rule.actions[0].animation.iterationCount"
+            :model-value="rule.actions[0].animation.iterationCount"
             style="width: 100px"
-            @change="record"
+            @change="(value) => updateRule(rule.id, (target) => { target.actions[0].animation.iterationCount = value as any })"
           >
             <el-option label="无限" value="infinite" />
           </el-select>
 
-          <el-checkbox v-model="infiniteFlags[rule.id]" @change="toggleInfinite(rule)">无限</el-checkbox>
+          <el-checkbox
+            :model-value="infiniteFlags[rule.id]"
+            @change="(value) => toggleInfinite(rule.id, Boolean(value))"
+          >
+            无限
+          </el-checkbox>
         </div>
       </div>
 
@@ -57,18 +85,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useEditorStore } from '@/stores/editor'
-import { useHistoryStore } from '@/stores/history'
+import { computed, reactive, watch } from 'vue'
 import generateID from '@/utils/generateID'
 import { ANIMATION_PRESETS } from '@/constants/animations'
-import type { Animation, AnimationAction, SubscriptionRule, Component } from '@/types'
-import { deepCopy } from '@/utils/common'
+import type { Animation, AnimationAction, Component, ComponentAttrChange, SubscriptionRule } from '@/types'
+import { deepCopy, isJSONEqual } from '@/utils/common'
 
-const editorStore = useEditorStore()
-const historyStore = useHistoryStore()
-const { curComponent, componentData } = storeToRefs(editorStore)
+const props = defineProps<{
+  component: Component
+  componentData: Component[]
+}>()
+
+const emit = defineEmits<{
+  change: [payload: ComponentAttrChange]
+}>()
 
 type RuleVM = SubscriptionRule & { actions: [AnimationAction] }
 
@@ -76,45 +106,12 @@ function defaultAnimation(): Animation {
   return { label: '渐显', value: 'fadeIn', duration: 1, delay: 0, iterationCount: 1 }
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null
-}
-
-function isAnimationAction(v: unknown): v is AnimationAction {
-  return isRecord(v) && v.type === 'animation' && isRecord(v.animation)
-}
-
-function normalizeRule(rule: SubscriptionRule): RuleVM {
-  const first = Array.isArray(rule.actions) ? rule.actions[0] : undefined
-  if (!first || !isAnimationAction(first) || !first.animation) {
-    ;(rule as RuleVM).actions = [{ type: 'animation', animation: defaultAnimation() }]
-  }
-
-  // 规范化规则字段（补齐缺失的 id / sourceId / eventType）
-  if (!rule.id) rule.id = generateID()
-  if (!rule.sourceId) rule.sourceId = ''
-  if (!rule.eventType) rule.eventType = 'v-click'
-
-  return rule as RuleVM
-}
-
-watch(
-  curComponent,
-  () => {
-    if (!curComponent.value) return
-    if (!curComponent.value.subscriptions) curComponent.value.subscriptions = []
-    curComponent.value.subscriptions = curComponent.value.subscriptions.map((r) => normalizeRule(r))
-  },
-  { immediate: true },
-)
-
 const subscriptions = computed<RuleVM[]>(() => {
-  return (curComponent.value?.subscriptions || []) as RuleVM[]
+  return (props.component.subscriptions || []) as RuleVM[]
 })
 
 const sourceOptions = computed(() => {
-  const selfId = curComponent.value?.id
-  return componentData.value.filter((c) => c.id !== selfId)
+  return props.componentData.filter((c) => c.id !== props.component.id)
 })
 
 const animationOptions = computed(() => {
@@ -122,23 +119,19 @@ const animationOptions = computed(() => {
 })
 
 const infiniteFlags = reactive<Record<string, boolean>>({})
-const lastSnapshot = ref<Component | null>(null)
-
-function snapshotComponent(): Component | null {
-  return curComponent.value ? deepCopy(curComponent.value) : null
-}
 
 watch(
-  curComponent,
-  () => {
-    lastSnapshot.value = snapshotComponent()
+  subscriptions,
+  (list) => {
+    list.forEach((rule) => {
+      infiniteFlags[rule.id] = rule.actions[0].animation.iterationCount === 'infinite'
+    })
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 function addRule() {
-  if (!curComponent.value) return
-  const rule: SubscriptionRule = {
+  const rule: RuleVM = {
     id: generateID(),
     sourceId: sourceOptions.value[0]?.id || '',
     eventType: 'v-click',
@@ -149,42 +142,48 @@ function addRule() {
       },
     ],
   }
-  curComponent.value.subscriptions ||= []
-  const normalized = normalizeRule(rule)
-  curComponent.value.subscriptions.push(normalized)
-  infiniteFlags[normalized.id] = normalized.actions[0].animation.iterationCount === 'infinite'
-  record()
+  infiniteFlags[rule.id] = rule.actions[0].animation.iterationCount === 'infinite'
+  emitSubscriptions([...subscriptions.value, rule], 'update subscriptions')
 }
 
 function removeRule(index: number) {
-  if (!curComponent.value?.subscriptions) return
-  const rule = curComponent.value.subscriptions[index]
-  curComponent.value.subscriptions.splice(index, 1)
+  const next = deepCopy(subscriptions.value)
+  const rule = next[index]
+  next.splice(index, 1)
   if (rule) delete infiniteFlags[rule.id]
-  record()
+  emitSubscriptions(next, 'update subscriptions')
 }
 
-function toggleInfinite(rule: RuleVM) {
-  const flag = !!infiniteFlags[rule.id]
-  rule.actions[0].animation.iterationCount = flag ? 'infinite' : 1
-  record()
+function toggleInfinite(id: string, flag: boolean) {
+  infiniteFlags[id] = flag
+  updateRule(id, (target) => {
+    target.actions[0].animation.iterationCount = flag ? 'infinite' : 1
+  })
 }
 
-function syncLabel(rule: RuleVM) {
-  const val = rule.actions[0].animation.value
-  const option = animationOptions.value.find((o) => o.value === val)
-  rule.actions[0].animation.label = option?.label || val
-  record()
+function syncLabel(id: string, value: string) {
+  const option = animationOptions.value.find((o) => o.value === value)
+  updateRule(id, (target) => {
+    target.actions[0].animation.value = value
+    target.actions[0].animation.label = option?.label || value
+  })
 }
 
-function record() {
-  const c = curComponent.value
-  if (!c) return
-  const before = lastSnapshot.value ?? snapshotComponent()
-  const after = snapshotComponent()
-  if (!before || !after) return
-  historyStore.executeUpdate(c.id, before, after, 'update subscriptions')
-  lastSnapshot.value = after
+function updateRule(id: string, updater: (rule: RuleVM) => void) {
+  const next = deepCopy(subscriptions.value)
+  const target = next.find((rule) => rule.id === id)
+  if (!target) return
+  updater(target)
+  emitSubscriptions(next, 'update subscriptions')
+}
+
+function emitSubscriptions(list: RuleVM[], label: string) {
+  if (isJSONEqual(list, props.component.subscriptions ?? [])) return
+
+  emit('change', {
+    patch: { subscriptions: list },
+    label,
+  })
 }
 </script>
 
@@ -238,4 +237,3 @@ function record() {
   white-space: nowrap;
 }
 </style>
-

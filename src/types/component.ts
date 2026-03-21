@@ -79,5 +79,36 @@ export interface Component {
   subscriptions?: SubscriptionRule[]
   groupStyle?: Partial<ComponentStyle>
   request?: RequestConfig
-  collapseName?: string
+}
+
+export type ComponentAttrKey =
+  | 'style'
+  | 'propValue'
+  | 'events'
+  | 'triggerAnimations'
+  | 'subscriptions'
+  | 'request'
+
+type ComponentAttrValueMap = {
+  style: Component['style']
+  propValue: Component['propValue']
+  events: Component['events']
+  triggerAnimations: Component['triggerAnimations']
+  subscriptions: Component['subscriptions']
+  request: Component['request']
+}
+
+type SingleComponentAttrPatch<K extends ComponentAttrKey> = {
+  [P in K]-?: ComponentAttrValueMap[P]
+} & {
+  [P in Exclude<ComponentAttrKey, K>]?: never
+}
+
+export type ComponentAttrPatch = {
+  [K in ComponentAttrKey]: SingleComponentAttrPatch<K>
+}[ComponentAttrKey]
+
+export interface ComponentAttrChange {
+  patch: ComponentAttrPatch
+  label?: string
 }

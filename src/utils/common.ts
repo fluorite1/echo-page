@@ -2,6 +2,14 @@ export function deepCopy<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj))
 }
 
+function serializeComparable(value: unknown): string {
+  return value === undefined ? '__undefined__' : JSON.stringify(value)
+}
+
+export function isJSONEqual(a: unknown, b: unknown): boolean {
+  return serializeComparable(a) === serializeComparable(b)
+}
+
 export function $(selector: string): HTMLElement | null {
   return document.querySelector(selector)
 }

@@ -8,6 +8,7 @@
       width: canvasStyleData.width + 'px',
       height: canvasStyleData.height + 'px',
     }"
+    @mousedown.self="clearCurComponent"
     @contextmenu="handleContextMenu"
   >
     <Grid />
@@ -28,7 +29,6 @@
         :style="getComponentStyle(item.style)"
         :prop-value="item.propValue"
         :element="item"
-        @input="handleInput"
       />
     </Shape>
 
@@ -79,21 +79,9 @@ function handleContextMenu(e: MouseEvent) {
   contextMenuStore.showContextMenu({ top, left })
 }
 
-function handleInput(element: any, value: string) {
-  editorStore.setShapeStyle({ height: getTextareaHeight(element, value) })
-}
-
-function getTextareaHeight(element: any, text: string) {
-  const textarea = document.getElementById('textarea') as HTMLTextAreaElement
-  if (textarea) {
-    textarea.style.width = element.style.width + 'px'
-    textarea.style.fontSize = element.style.fontSize + 'px'
-    textarea.style.lineHeight = element.style.lineHeight
-    textarea.style.fontFamily = element.style.fontFamily
-    textarea.value = text
-    return textarea.scrollHeight
-  }
-  return element.style.height
+function clearCurComponent() {
+  editorStore.setCurComponent(null, null)
+  contextMenuStore.hideContextMenu()
 }
 </script>
 

@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { deepCopy } from '@/utils/common'
-import type { Component } from '@/types'
+import type { Component, ComponentAttrPatch } from '@/types'
+import { extractBeforePatch } from '@/utils/componentPatch'
 import { useEditorStore } from './editor'
 
 export type CommandType = 'add' | 'delete' | 'update' | 'reorder' | 'batch'
@@ -28,8 +29,8 @@ export interface DeleteCommand extends BaseCommand {
 export interface UpdateCommand extends BaseCommand {
   type: 'update'
   id: string
-  before: Component
-  after: Component
+  beforePatch: ComponentAttrPatch
+  afterPatch: ComponentAttrPatch
 }
 
 export interface ReorderCommand extends BaseCommand {
@@ -57,13 +58,6 @@ export const useHistoryStore = defineStore('history', () => {
 
   const done = ref<HistoryCommand[]>([])
   const undone = ref<HistoryCommand[]>([])
-
-  // 用于高频交互：先 beginUpdate，再在交互结束时 commitUpdate
-  const pendingUpdate = ref<{
-    id: string
-    before: Component
-    label?: string
-  } | null>(null)
 
   const canUndo = computed(() => done.value.length > 0)
   const canRedo = computed(() => undone.value.length > 0)
@@ -100,7 +94,6 @@ export const useHistoryStore = defineStore('history', () => {
   function clear() {
     done.value = []
     undone.value = []
-    pendingUpdate.value = null
   }
 
   // ---------- 命令构造器 ----------
@@ -178,25 +171,27 @@ export const useHistoryStore = defineStore('history', () => {
     }
   }
 
-  function createUpdateCommandById(
+  function applyPatchById(id: string, patch: ComponentAttrPatch) {
+    editorStore.updateComponentPropsById(id, patch)
+  }
+
+  function createPatchUpdateCommand(
     id: string,
-    before: Component,
-    after: Component,
+    beforePatch: ComponentAttrPatch,
+    afterPatch: ComponentAttrPatch,
     label?: string,
   ): UpdateCommand {
-    const beforeCopy = deepCopy(before)
-    const afterCopy = deepCopy(after)
     return {
       type: 'update',
       label,
       id,
-      before: beforeCopy,
-      after: afterCopy,
+      beforePatch,
+      afterPatch,
       do() {
-        editorStore.replaceComponentById(id, deepCopy(afterCopy))
+        applyPatchById(id, afterPatch)
       },
       undo() {
-        editorStore.replaceComponentById(id, deepCopy(beforeCopy))
+        applyPatchById(id, beforePatch)
       },
     }
   }
@@ -237,27 +232,21 @@ export const useHistoryStore = defineStore('history', () => {
     execute(createBatchCommand(list, label))
   }
 
-  // 高频交互：begin/commit
-  function beginUpdate(id: string, before: Component, label?: string) {
-    pendingUpdate.value = { id, before: deepCopy(before), label }
-  }
+  function executePatchUpdate(
+    id: string,
+    afterPatch: ComponentAttrPatch,
+    label?: string,
+    beforePatch?: ComponentAttrPatch,
+  ) {
+    const current = editorStore.getComponentById(id)
+    if (!current) return
 
-  function commitUpdate(after: Component) {
-    const p = pendingUpdate.value
-    if (!p) return
-    pendingUpdate.value = null
+    const resolvedAfterPatch = deepCopy(afterPatch)
+    const resolvedBeforePatch = beforePatch ?? extractBeforePatch(current, resolvedAfterPatch)
 
-    const cmd = createUpdateCommandById(p.id, p.before, after, p.label)
-    execute(cmd)
-  }
-
-  function cancelPendingUpdate() {
-    pendingUpdate.value = null
-  }
-
-  // 低频：直接一次性 update
-  function executeUpdate(id: string, before: Component, after: Component, label?: string) {
-    execute(createUpdateCommandById(id, before, after, label))
+    execute(
+      createPatchUpdateCommand(id, resolvedBeforePatch, resolvedAfterPatch, label),
+    )
   }
 
   return {
@@ -276,9 +265,6 @@ export const useHistoryStore = defineStore('history', () => {
     executeDeleteById,
     executeClearCanvas,
     executeReorder,
-    beginUpdate,
-    commitUpdate,
-    cancelPendingUpdate,
-    executeUpdate,
+    executePatchUpdate,
   }
 })
